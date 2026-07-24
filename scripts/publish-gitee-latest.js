@@ -142,39 +142,53 @@ function releaseBody() {
 
 async function updateReleaseMeta(token, releaseId) {
   const res = await api('PATCH', `/repos/${OWNER}/${REPO}/releases/${releaseId}`, token, {
+    tag_name: 'latest',
     name: `v${VERSION}`,
     body: releaseBody(),
   });
   if (res.status >= 400) {
     console.warn('update release meta skipped:', res.status, res.text.slice(0, 200));
+  } else {
+    console.log('release meta updated to', `v${VERSION}`);
   }
 }
 
 async function listAttachFiles(token, releaseId) {
-  // Gitee embeds assets on release detail
-  const res = await api('GET', `/repos/${OWNER}/${REPO}/releases/${releaseId}`, token);
-  if (res.status >= 400) return [];
-  const assets = res.json?.assets || res.json?.attach_files || [];
-  return Array.isArray(assets) ? assets : [];
+  const res = await api(
+    'GET',
+    `/repos/${OWNER}/${REPO}/releases/${releaseId}/attach_files`,
+    token
+  );
+  if (res.status >= 400) {
+    console.warn('list attach files failed:', res.status, res.text.slice(0, 200));
+    return [];
+  }
+  return Array.isArray(res.json) ? res.json : [];
 }
 
-async function deleteAttachFile(token, attachId) {
-  const res = await api('DELETE', `/repos/${OWNER}/${REPO}/attach_files/${attachId}`, token);
-  return res.status < 400;
+async function deleteAttachFile(token, releaseId, attachId) {
+  const res = await api(
+    'DELETE',
+    `/repos/${OWNER}/${REPO}/releases/${releaseId}/attach_files/${attachId}`,
+    token
+  );
+  return res.status < 400 || res.status === 204;
 }
 
 async function clearOldAssets(token, releaseId, fileNames) {
   const want = new Set(fileNames.map((f) => f.toLowerCase()));
   const assets = await listAttachFiles(token, releaseId);
   for (const a of assets) {
-    const name = String(a.name || a.file_name || a.browser_download_url || '')
-      .split('/')
-      .pop()
-      .toLowerCase();
-    const id = a.id || a.attach_file_id;
-    if (id && want.has(name)) {
+    const name = String(a.name || '').toLowerCase();
+    const id = a.id;
+    // Remove same-name files and any previous Setup/latest.yml artifacts so download/latest resolves cleanly
+    const isUpdateAsset =
+      want.has(name) ||
+      name === 'latest.yml' ||
+      /^blackholerecyclebin-setup-.*\.exe(\.blockmap)?$/i.test(name);
+    if (id && isUpdateAsset) {
       console.log('removing old asset', name, id);
-      const ok = await deleteAttachFile(token, id);
+      const ok = await deleteAttachFile(token, releaseId, id);
       console.log(ok ? 'removed' : 'remove failed', name);
     }
   }
