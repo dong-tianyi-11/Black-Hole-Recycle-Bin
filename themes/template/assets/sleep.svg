@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 266 200" width="266" height="200">
+  <defs>
+    <style>
+      .zzz { animation: zfade 2.4s ease-in-out infinite; }
+      @keyframes zfade { 0%,100%{opacity:.2;transform:translateY(0)} 50%{opacity:1;transform:translateY(-4px)} }
+    </style>
+  </defs>
+  <ellipse cx="140" cy="176" rx="60" ry="8" fill="#000" opacity=".1"/>
+  <ellipse cx="148" cy="142" rx="70" ry="36" fill="#e8c99a" transform="rotate(-12 148 142)"/>
+  <ellipse cx="120" cy="128" rx="40" ry="34" fill="#e8c99a"/>
+  <ellipse cx="118" cy="132" rx="22" ry="16" fill="#f5e6c8"/>
+  <ellipse cx="88" cy="108" rx="14" ry="20" fill="#c4a574" transform="rotate(-40 88 108)"/>
+  <ellipse cx="148" cy="100" rx="14" ry="20" fill="#c4a574" transform="rotate(10 148 100)"/>
+  <path d="M104 126 Q112 130 120 126" fill="none" stroke="#2a2218" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M128 124 Q136 128 144 122" fill="none" stroke="#2a2218" stroke-width="2.5" stroke-linecap="round"/>
+  <ellipse cx="122" cy="138" rx="7" ry="5" fill="#3a2a22"/>
+  <path d="M200 70 Q210 60 218 68" class="zzz" fill="none" stroke="#8b7355" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="208" y="58" class="zzz" fill="#8b7355" font-size="16" font-family="Segoe UI,sans-serif">z</text>
+  <text x="222" y="42" class="zzz" fill="#8b7355" font-size="12" font-family="Segoe UI,sans-serif" style="animation-delay:.4s">z</text>
+  <ellipse cx="175" cy="155" rx="18" ry="12" fill="#d4b07a"/>
+</svg>

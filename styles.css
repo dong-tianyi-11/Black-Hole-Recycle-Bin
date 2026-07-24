@@ -1,0 +1,271 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent !important;
+  background-color: rgba(0, 0, 0, 0) !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: no-drag;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* Kill any OS / Chromium chrome flash */
+html::before,
+html::after,
+body::before,
+body::after {
+  display: none !important;
+  content: none !important;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+
+#bh {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  background: transparent !important;
+  border: none !important;
+}
+
+#pet {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+  background: transparent !important;
+  overflow: hidden;
+}
+
+#pet-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center 62%;
+  background: transparent !important;
+  /* No CSS filter — filters create a rectangular layer that looks like a white box on Win11 */
+  filter: none;
+  transform-origin: 50% 78%;
+  image-rendering: auto;
+}
+
+#crumbs {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  overflow: hidden;
+}
+
+.crumb {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 14px;
+  height: 16px;
+  margin-left: -7px;
+  border-radius: 2px;
+  background: linear-gradient(160deg, #f2e6c9 0%, #c4a574 55%, #8a6a3e 100%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  animation: crumb-fall 0.75s ease-in forwards;
+  transform: translate(var(--sx, 0), var(--sy, 0)) scale(0.6);
+}
+
+.crumb::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 3px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 1px;
+}
+
+@keyframes crumb-fall {
+  0% {
+    opacity: 0;
+    transform: translate(var(--sx, 0), calc(var(--sy, 0) - 8%)) scale(0.5) rotate(-12deg);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--sx, 0) * 0.2), 8%) scale(0.25) rotate(18deg);
+  }
+}
+
+#pet-eat-fx {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%) scale(0.4);
+  width: 22%;
+  height: 14%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 200, 140, 0.85), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body[data-theme-type="blackhole"] #bh,
+body[data-theme="blackhole"] #bh {
+  display: block;
+}
+body[data-theme-type="blackhole"] #pet,
+body[data-theme="blackhole"] #pet {
+  display: none;
+}
+body[data-theme-type="blackhole"] #hit,
+body[data-theme="blackhole"] #hit {
+  inset: 18%;
+  border-radius: 50%;
+}
+
+/* Pet themes: calico + user skins */
+body[data-theme-type="pet"] #bh {
+  display: none;
+}
+body[data-theme-type="pet"] #pet {
+  display: flex;
+  background: transparent !important;
+}
+body[data-theme-type="pet"] #pet-img {
+  opacity: 1;
+  visibility: visible;
+  background: transparent !important;
+}
+body[data-theme-type="pet"] #hit {
+  /* Larger grab target — tiny hit + click-through made drag feel intermittent */
+  inset: 10% 14% 4% 14%;
+  border-radius: 28%;
+  background: transparent !important;
+}
+
+/* Hit area — NO -webkit-app-region:drag (that paints Win11 ghost titlebar) */
+#hit {
+  position: absolute;
+  cursor: grab;
+  -webkit-app-region: no-drag;
+  z-index: 2;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  touch-action: none;
+}
+
+#hit:active {
+  cursor: grabbing;
+}
+
+#hit.drag-over {
+  filter: none;
+}
+
+body.drag-files #hit {
+  -webkit-app-region: no-drag;
+}
+
+body.drag-files[data-theme="calico"] #pet-img {
+  filter: none;
+  opacity: 0.98;
+}
+
+/* Keep pet visual size locked while the desktop window is being moved */
+body.window-dragging #pet-img {
+  transform: none !important;
+  animation: none !important;
+}
+
+/* Eat frames — same layout as idle; chewing = PNG mouth/cheek frames only (no body shake) */
+#pet-img.pet-eating-open,
+#pet-img.pet-chewing {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center 62%;
+  transform: none;
+  transform-origin: 50% 78%;
+  animation: none !important;
+}
+
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  transform: translateX(-50%) translateY(8px);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(8, 6, 4, 0.72);
+  color: #f6d38a;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  white-space: nowrap;
+  z-index: 5;
+  border: 1px solid rgba(246, 211, 138, 0.22);
+}
+
+body[data-theme="calico"] #toast {
+  color: #ffe6c8;
+  border-color: rgba(255, 200, 150, 0.3);
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+body.feeding[data-theme-type="blackhole"] #hit,
+body.feeding[data-theme="blackhole"] #hit {
+  animation: pulse-feed 0.55s ease;
+}
+
+body.feeding[data-theme-type="pet"] #pet-eat-fx {
+  animation: eat-glow 0.7s ease;
+}
+
+@keyframes pulse-feed {
+  0% { transform: scale(1); }
+  40% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+@keyframes eat-glow {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  35% { opacity: 1; transform: translate(-50%, -40%) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -20%) scale(1.6); }
+}

@@ -1,0 +1,32 @@
+{
+  "_comment": "复制本文件夹到用户主题目录，改名为你的主题 id，删掉 _scaffoldOnly，替换 assets 即可",
+  "_scaffoldOnly": true,
+  "schemaVersion": 1,
+  "id": "my-theme",
+  "name": "我的主题",
+  "type": "pet",
+  "author": "Your Name",
+  "version": "1.0.0",
+  "description": "自定义桌宠皮肤",
+  "viewBox": { "x": 0, "y": 0, "width": 266, "height": 200 },
+  "eatLabel": "宠物",
+  "toastOk": "已送入回收站",
+  "toastFail": "失败了…",
+  "sleepSequence": { "mode": "direct" },
+  "timings": {
+    "reactPoke": 1200,
+    "eatChew": 1600,
+    "waking": 1800
+  },
+  "states": {
+    "idle": ["idle.svg"],
+    "sleeping": ["sleep.svg"],
+    "waking": ["wake.svg"],
+    "reactPoke": ["poke.svg"],
+    "reactDrag": ["drag.svg"],
+    "eatOpen": ["eat-open.svg"],
+    "eatChew": ["eat-chew.svg"],
+    "attention": { "fallbackTo": "reactPoke" },
+    "error": { "fallbackTo": "sleeping" }
+  }
+}

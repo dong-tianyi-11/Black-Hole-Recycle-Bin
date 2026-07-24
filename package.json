@@ -1,0 +1,107 @@
+{
+  "name": "black-hole-recycle-bin",
+  "version": "1.0.0",
+  "description": "Interstellar-style desktop black hole pet that sends dropped files to the Recycle Bin",
+  "main": "main.js",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/dong-tianyi-11/black-hole-recycle-bin.git"
+  },
+  "gitee": {
+    "owner": "dong-tianyi-11",
+    "repo": "black-hole-recycle-bin"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder --win --mac",
+    "build:win": "electron-builder --win nsis:x64",
+    "build:win:arm64": "electron-builder --win nsis:arm64",
+    "build:mac": "electron-builder --mac",
+    "build:dir": "electron-builder --dir"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3",
+    "extract-zip": "^2.0.1",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "electron": "^35.4.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.blackhole.recyclebin",
+    "productName": "黑洞回收站",
+    "copyright": "Copyright © Black Hole Recycle Bin",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "styles.css",
+      "app.js",
+      "blackhole.js",
+      "pet.js",
+      "capture.js",
+      "recycle.js",
+      "theme-loader.js",
+      "theme-importer.js",
+      "screen-clamp.js",
+      "updater.js",
+      "tray.png",
+      "package.json",
+      "assets/**/*",
+      "themes/**/*",
+      "!themes/**/*-src.png",
+      "!**/ChatGPT*"
+    ],
+    "asar": true,
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false,
+      "artifactName": "BlackHoleRecycleBin-Setup-${version}-${arch}.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "黑洞回收站"
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "artifactName": "BlackHoleRecycleBin-${version}-${arch}.${ext}",
+      "category": "public.app-category.utilities",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "extendInfo": {
+        "LSUIElement": true
+      },
+      "identity": null
+    },
+    "dmg": {
+      "title": "黑洞回收站 ${version}"
+    }
+  }
+}

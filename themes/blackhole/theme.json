@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "blackhole",
+  "name": "黑洞",
+  "type": "blackhole",
+  "author": "Black Hole Recycle Bin",
+  "version": "1.0.0",
+  "description": "Interstellar 风格吸积盘与桌面引力透镜",
+  "viewBox": { "x": 0, "y": 0, "width": 1, "height": 1 },
+  "eatLabel": "黑洞",
+  "toastOk": "已送入回收站",
+  "toastFail": "吸入失败"
+}

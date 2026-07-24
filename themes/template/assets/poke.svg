@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 266 200" width="266" height="200">
+  <defs>
+    <style>
+      .jump { transform-origin: 133px 150px; animation: jump .45s ease-out; }
+      @keyframes jump { 0%{transform:translateY(0) scaleY(1)} 40%{transform:translateY(-14px) scaleY(1.04)} 100%{transform:translateY(0) scaleY(1)} }
+      .tail { transform-origin: 198px 118px; animation: wag .25s ease-in-out infinite; }
+      @keyframes wag { 0%,100%{transform:rotate(-25deg)} 50%{transform:rotate(28deg)} }
+    </style>
+  </defs>
+  <g class="jump">
+    <ellipse cx="133" cy="178" rx="48" ry="7" fill="#000" opacity=".1"/>
+    <g class="tail"><path d="M198 120 C232 90, 250 60, 238 40 C228 58, 212 90, 196 112 Z" fill="#c4a574"/></g>
+    <ellipse cx="133" cy="138" rx="58" ry="42" fill="#e8c99a"/>
+    <ellipse cx="133" cy="148" rx="38" ry="28" fill="#f5e6c8"/>
+    <circle cx="133" cy="84" r="48" fill="#e8c99a"/>
+    <ellipse cx="133" cy="98" rx="28" ry="22" fill="#f5e6c8"/>
+    <ellipse cx="82" cy="48" rx="18" ry="28" fill="#c4a574" transform="rotate(-28 82 48)"/>
+    <ellipse cx="184" cy="48" rx="18" ry="28" fill="#c4a574" transform="rotate(28 184 48)"/>
+    <ellipse cx="110" cy="82" rx="8" ry="10" fill="#2a2218"/>
+    <ellipse cx="156" cy="82" rx="8" ry="10" fill="#2a2218"/>
+    <circle cx="112" cy="80" r="2.5" fill="#fff"/><circle cx="158" cy="80" r="2.5" fill="#fff"/>
+    <ellipse cx="133" cy="98" rx="9" ry="7" fill="#3a2a22"/>
+    <path d="M120 112 Q133 124 146 112" fill="none" stroke="#3a2a22" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="106" cy="104" r="7" fill="#f0a090" opacity=".65"/>
+    <circle cx="160" cy="104" r="7" fill="#f0a090" opacity=".65"/>
+    <text x="188" y="56" fill="#e85d4c" font-size="22" font-family="Segoe UI,sans-serif">!</text>
+  </g>
+</svg>
