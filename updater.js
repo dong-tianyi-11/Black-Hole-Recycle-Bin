@@ -57,6 +57,7 @@ function createUpdater(opts = {}) {
   let availableVersion = null;
   let autoUpdater = null;
   let schedulerTimer = null;
+  let manualCheckPending = false;
   const publish = readPublishConfig();
 
   function menuLabel() {
@@ -120,20 +121,37 @@ function createUpdater(opts = {}) {
 
       autoUpdater.on('checking-for-update', () => setStatus('checking'));
       autoUpdater.on('update-available', (info) => {
+        manualCheckPending = false;
         setStatus('available', info.version);
         promptUpdate(info.version, true);
       });
       autoUpdater.on('update-not-available', () => {
+        const wasManual = manualCheckPending;
+        manualCheckPending = false;
         setStatus('idle', null);
+        if (wasManual) {
+          dialog.showMessageBox({
+            type: 'info',
+            title: '已是最新',
+            message: `当前版本 v${app.getVersion()}`,
+          });
+        }
       });
       autoUpdater.on('download-progress', () => setStatus('downloading'));
       autoUpdater.on('update-downloaded', (info) => {
+        manualCheckPending = false;
         setStatus('ready', info.version);
         promptRestart(info.version);
       });
       autoUpdater.on('error', (err) => {
         console.warn('[updater]', err?.message || err);
+        const wasManual = manualCheckPending;
+        manualCheckPending = false;
         setStatus('idle');
+        if (wasManual) {
+          // Fall back to Gitee API / latest.yml when generic feed fails
+          checkViaGiteeApi(true);
+        }
       });
     } catch (err) {
       console.warn('[updater] electron-updater unavailable', err);
@@ -303,23 +321,15 @@ function createUpdater(opts = {}) {
     }
 
     if (process.platform === 'win32' && autoUpdater) {
+      manualCheckPending = !!manual;
       setStatus('checking');
       try {
         await autoUpdater.checkForUpdates();
       } catch (err) {
+        manualCheckPending = false;
         // Fallback to Gitee API (e.g. missing latest.yml)
         await checkViaGiteeApi(manual);
-        return;
       }
-      setTimeout(() => {
-        if (manual && status === 'idle') {
-          dialog.showMessageBox({
-            type: 'info',
-            title: '已是最新',
-            message: `当前版本 v${app.getVersion()}`,
-          });
-        }
-      }, 1500);
       return;
     }
 

@@ -123,14 +123,31 @@
   let dragging = false;
   let dragMoved = false;
   let pointerDown = false;
+  let mainDragStarted = false;
   let lastScreen = null;
   let activePointerId = null;
 
+  function hitUnderPoint(clientX, clientY) {
+    if (clientX == null || clientY == null) return hit.matches(':hover');
+    const el = document.elementFromPoint(clientX, clientY);
+    return !!(el && (el === hit || hit.contains(el)));
+  }
+
+  function syncClickThroughFromPoint(clientX, clientY) {
+    if (!clickThrough) return;
+    queueMicrotask(() => {
+      if (pointerDown || dragging) return;
+      window.blackHole.setIgnoreMouse(!hitUnderPoint(clientX, clientY));
+    });
+  }
+
   function endPointerDrag(e, { cancel = false } = {}) {
     if (!pointerDown && !dragging) return;
-    const wasDragging = dragging;
     const moved = dragMoved;
+    const startedMain = mainDragStarted;
     const pid = activePointerId;
+    const clientX = e?.clientX;
+    const clientY = e?.clientY;
 
     // Clear state before releasePointerCapture to avoid re-entry via lostpointercapture
     activePointerId = null;
@@ -138,6 +155,7 @@
     dragging = false;
     lastScreen = null;
     dragMoved = false;
+    mainDragStarted = false;
 
     if (pid != null && hit.hasPointerCapture?.(pid)) {
       try {
@@ -145,22 +163,16 @@
       } catch (_) {}
     }
 
-    // Always clear main-process drag lock (dragStart runs on pointerdown)
-    if (wasDragging) {
-      document.body.classList.remove('window-dragging');
+    document.body.classList.remove('window-dragging');
+    if (startedMain) {
       window.blackHole.dragEnd();
       if (moved) pet?.onWindowDragEnd();
-      else if (!cancel && !doNotDisturb) pet?.poke();
+    } else if (!cancel && !doNotDisturb) {
+      pet?.poke();
     }
 
-    // After drag-end IPC, re-sync click-through from real hover (don't force ignore)
-    if (clickThrough) {
-      queueMicrotask(() => {
-        if (pointerDown || dragging) return;
-        const over = hit.matches(':hover');
-        window.blackHole.setIgnoreMouse(!over);
-      });
-    }
+    // Prefer elementFromPoint — :hover is often stale right after drag on transparent windows
+    syncClickThroughFromPoint(clientX, clientY);
   }
 
   // Click-through: only #hit captures mouse
@@ -211,12 +223,13 @@
     pointerDown = true;
     dragging = true;
     dragMoved = false;
+    mainDragStarted = false;
     activePointerId = e.pointerId;
     lastScreen = { x: e.screenX, y: e.screenY };
     bumpActivity();
     pet?.notePointer();
     window.blackHole.setIgnoreMouse(false);
-    window.blackHole.dragStart();
+    // Defer dragStart until real move — avoids size flicker on simple clicks
     try {
       hit.setPointerCapture(e.pointerId);
     } catch (_) {}
@@ -234,7 +247,9 @@
     if (!dragMoved && dist <= 3) return;
     if (!dragMoved) {
       dragMoved = true;
+      mainDragStarted = true;
       document.body.classList.add('window-dragging');
+      window.blackHole.dragStart();
       pet?.onWindowDragStart();
     }
     window.blackHole.dragMove(dx, dy);

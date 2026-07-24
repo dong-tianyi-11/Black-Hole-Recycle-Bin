@@ -1,6 +1,6 @@
 {
   "name": "black-hole-recycle-bin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Interstellar-style desktop black hole pet that sends dropped files to the Recycle Bin",
   "main": "main.js",
   "author": "",
@@ -20,7 +20,8 @@
     "build:win": "electron-builder --win nsis:x64",
     "build:win:arm64": "electron-builder --win nsis:arm64",
     "build:mac": "electron-builder --mac",
-    "build:dir": "electron-builder --dir"
+    "build:dir": "electron-builder --dir",
+    "publish:gitee": "node scripts/publish-gitee-latest.js"
   },
   "dependencies": {
     "electron-updater": "^6.8.3",

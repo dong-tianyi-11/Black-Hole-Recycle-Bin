@@ -13,34 +13,24 @@ npm install
 npm start
 ```
 
-## 打包桌面应用
+## 打包与发布更新
 
 ```bash
-# Windows 安装包 (NSIS)
+# 1) 改 package.json 的 version
+# 2) 打 Windows 包
 npm run build:win
 
-# macOS DMG（需在 macOS 上构建）
-npm run build:mac
+# 3) 上传到 Gitee 发行版标签 latest（覆盖旧附件）
+npm run publish:gitee
 ```
 
-产物在 `dist/`：
+产物在 `dist/`：`BlackHoleRecycleBin-Setup-*.exe`、`latest.yml`、`*.blockmap`。
 
-| 平台 | 文件 |
-|------|------|
-| Windows | `BlackHoleRecycleBin-Setup-*.exe` + `latest.yml` + `*.blockmap` |
-| macOS | `BlackHoleRecycleBin-*.dmg` + `latest-mac.yml` |
+### 测试自动更新
 
-macOS 未签名时，首次打开请右键 → 打开，或执行：
-
-```bash
-xattr -cr "/Applications/黑洞回收站.app"
-```
-
-## 自动更新（Gitee）
-
-更新源已指向 Gitee Releases 的固定标签 **`latest`**：
-
-`https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/`
+1. 先安装较旧版本（如 v1.0.0）
+2. 确认 Gitee `latest` 发行版已是新版本（如 v1.0.1）的安装包与 `latest.yml`
+3. 打开已安装应用 → 托盘 → **检查更新** → 下载 → 重启
 
 | 平台 | 行为 |
 |------|------|
@@ -48,21 +38,7 @@ xattr -cr "/Applications/黑洞回收站.app"
 | macOS 安装版 | 检查到新版本后打开 Gitee Releases 下载页 |
 | 开发模式 `npm start` | 提示使用安装版检查更新 |
 
-托盘还可开关 **自动检查更新**（后台约每 12 小时）。
-
-### 发版流程（必须）
-
-1. 改 `package.json` 的 `version`（如 `1.0.1`）
-2. 本地打包：`npm run build:win`
-3. 在 Gitee 仓库 → **发行版** → 创建/编辑标签为 **`latest`** 的发行版  
-   - 标题建议写版本号，如 `v1.0.1`
-4. 上传 `dist/` 中这些文件到该发行版（覆盖旧文件）：
-   - `latest.yml`
-   - `BlackHoleRecycleBin-Setup-*.exe`
-   - 对应的 `*.blockmap`（若有）
-5. （可选）再另建标签 `v1.0.1` 作历史存档
-
-> 注意：自动更新读取的是标签名为 **`latest`** 的发行版附件，不是随便一个 `v*` 标签。
+> 自动更新读取的是标签名为 **`latest`** 的发行版附件。
 
 ## 操作
 

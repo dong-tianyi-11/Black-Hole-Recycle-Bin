@@ -807,6 +807,10 @@ function commonMenuTail() {
       click: () => getUpdater().setAutoUpdateCheck(!(loadConfig().autoUpdateCheck !== false)),
     },
     { type: 'separator' },
+    {
+      label: `版本 v${app.getVersion()}`,
+      enabled: false,
+    },
     getUpdater().getUpdateMenuItem(),
     { type: 'separator' },
     {
