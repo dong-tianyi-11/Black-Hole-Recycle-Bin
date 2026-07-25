@@ -100,7 +100,7 @@
     "win": {
       "icon": "build/icon.png",
       "signAndEditExecutable": false,
-      "artifactName": "BlackHoleRecycleBin-Setup-${version}-${arch}.${ext}",
+      "artifactName": "BlackHoleRecycleBin-Windows-${arch}.${ext}",
       "target": [
         {
           "target": "nsis",
@@ -120,7 +120,7 @@
     },
     "mac": {
       "icon": "build/icon.png",
-      "artifactName": "BlackHoleRecycleBin-${version}-${arch}.${ext}",
+      "artifactName": "BlackHoleRecycleBin-macOS-${arch}.${ext}",
       "category": "public.app-category.utilities",
       "minimumSystemVersion": "11.0",
       "target": [

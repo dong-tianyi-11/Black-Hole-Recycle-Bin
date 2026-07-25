@@ -1,4 +1,4 @@
-# Build installers (no auto-publish — upload to Gitee Releases manually)
+# Build installers and refresh GitHub Release tag `latest` (permanent download URLs)
 name: Build
 
 on:
@@ -6,6 +6,9 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -37,3 +40,38 @@ jobs:
             dist/*.yml
             dist/*.blockmap
           if-no-files-found: warn
+
+  publish-github:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: dist-*
+          merge-multiple: true
+      - name: Collect release files
+        id: files
+        run: |
+          mkdir -p dist
+          cp -f artifacts/* dist/ 2>/dev/null || true
+          ls -lah dist
+          FILES=$(find dist -maxdepth 1 -type f \( -name 'BlackHoleRecycleBin-*.exe' -o -name 'BlackHoleRecycleBin-*.dmg' -o -name 'latest.yml' -o -name 'latest-mac.yml' -o -name '*.blockmap' \) -printf '%p\n' | tr '\n' ' ')
+          echo "list=$FILES" >> "$GITHUB_OUTPUT"
+          test -n "$(ls -A dist 2>/dev/null)" || (echo 'no dist files' && exit 1)
+      - name: Publish / refresh GitHub latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest
+          body: |
+            ## Permanent direct downloads
+            - Windows x64: https://github.com/${{ github.repository }}/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe
+            - macOS Apple Silicon: https://github.com/${{ github.repository }}/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg
+            - macOS Intel: https://github.com/${{ github.repository }}/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg
+          files: dist/*
+          make_latest: true
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

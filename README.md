@@ -8,6 +8,24 @@ Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把�
 
 内置皮肤：**黑洞**、**三花小猫**、**炼丹少年**。支持自定义主题与 **Gitee 自动更新**。
 
+## 永久下载直链
+
+链接固定不变，每次发版会覆盖同名安装包；点击即开始下载。
+
+| 平台 | GitHub（推荐） | Gitee |
+|------|----------------|-------|
+| Windows x64 | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
+| macOS Apple Silicon (M 系列) | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-arm64.dmg) |
+| macOS Intel | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-x64.dmg) |
+
+纯文本链接（可放进文档 / 官网）：
+
+```text
+https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe
+https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg
+https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg
+```
+
 ## 系统要求
 
 | 平台 | 最低版本 | 说明 |
@@ -35,7 +53,9 @@ npm run build:win
 npm run publish:gitee
 ```
 
-产物在 `dist/`：`BlackHoleRecycleBin-Setup-*.exe`、`latest.yml`、`*.blockmap`。
+产物在 `dist/`：`BlackHoleRecycleBin-Windows-x64.exe`、`latest.yml`、`*.blockmap`（macOS 为 `BlackHoleRecycleBin-macOS-*.dmg`）。
+
+也可在 GitHub Actions 手动运行 **Build** 工作流，自动打 Win/Mac 包并刷新 `latest` 发行版（永久直链会随之更新）。
 
 ### 测试自动更新
 

@@ -30,12 +30,19 @@ function resolveFiles() {
     const blockmap = `${u}.blockmap`;
     if (fs.existsSync(path.join(DIST, blockmap))) files.add(blockmap);
   }
-  // Fallback naming if yml parse missed
-  const exe = `BlackHoleRecycleBin-Setup-${VERSION}-x64.exe`;
-  if (fs.existsSync(path.join(DIST, exe))) {
-    files.add(exe);
-    const bm = `${exe}.blockmap`;
-    if (fs.existsSync(path.join(DIST, bm))) files.add(bm);
+  // Stable permanent names only (keep URLs forever)
+  for (const exe of ['BlackHoleRecycleBin-Windows-x64.exe']) {
+    if (fs.existsSync(path.join(DIST, exe))) {
+      files.add(exe);
+      const bm = `${exe}.blockmap`;
+      if (fs.existsSync(path.join(DIST, bm))) files.add(bm);
+    }
+  }
+  for (const dmg of [
+    'BlackHoleRecycleBin-macOS-arm64.dmg',
+    'BlackHoleRecycleBin-macOS-x64.dmg',
+  ]) {
+    if (fs.existsSync(path.join(DIST, dmg))) files.add(dmg);
   }
   return [...files];
 }
@@ -130,28 +137,13 @@ function releaseBody() {
     '',
     '自动更新通道（发行版标签必须为 `latest`）。',
     '',
-    '安装本包后，托盘菜单可「检查更新」。',
+    '### 永久下载直链（始终指向本 latest 发行版）',
     '',
-    '### 1.0.4',
-    '- 迷你模式仅左右贴边（去掉上下）',
-    '- 自定义尺寸滑块 / 精确输入；缩放不挪位置、不闪烁',
-    '- 从图片 + API Key 生成主题；恢复 zip 导入',
-    '- 拖拽恢复 reactDrag 动画',
+    `- Windows x64：https://gitee.com/${OWNER}/${REPO}/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe`,
+    `- macOS Apple Silicon：https://gitee.com/${OWNER}/${REPO}/releases/download/latest/BlackHoleRecycleBin-macOS-arm64.dmg`,
+    `- macOS Intel：https://gitee.com/${OWNER}/${REPO}/releases/download/latest/BlackHoleRecycleBin-macOS-x64.dmg`,
     '',
-    '### 1.0.3',
-    '- 换皮肤后窗口位置保持不变',
-    '- 黑洞扭曲吸附不再闪屏消失（截屏排除 + 平滑过渡）',
-    '',
-    '### 1.0.2',
-    '- Mini Mode 贴边探头：三花素材镜像翻转，脸/爪正确探出屏幕边',
-    '- 有新版本时弹出系统通知，托盘提示「有新版本」',
-    '- 启动后更快自动检查更新',
-    '',
-    '### 1.0.1',
-    '- 拖拽不再误触窗口缩放；单击更稳',
-    '- 拖完后点击穿透状态修复',
-    '- 检查更新提示更准确（Gitee）',
-    '- 托盘显示当前版本号',
+    'GitHub 镜像直链见：https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest',
   ].join('\n');
 }
 
@@ -200,7 +192,8 @@ async function clearOldAssets(token, releaseId, fileNames) {
     const isUpdateAsset =
       want.has(name) ||
       name === 'latest.yml' ||
-      /^blackholerecyclebin-setup-.*\.exe(\.blockmap)?$/i.test(name);
+      name === 'latest-mac.yml' ||
+      /^blackholerecyclebin-(windows|macos|setup).*\.(exe|dmg)(\.blockmap)?$/i.test(name);
     if (id && isUpdateAsset) {
       console.log('removing old asset', name, id);
       const ok = await deleteAttachFile(token, releaseId, id);

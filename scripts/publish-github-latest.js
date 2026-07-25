@@ -32,11 +32,18 @@ function resolveFiles() {
     const blockmap = `${u}.blockmap`;
     if (fs.existsSync(path.join(DIST, blockmap))) files.add(blockmap);
   }
-  const exe = `BlackHoleRecycleBin-Setup-${VERSION}-x64.exe`;
-  if (fs.existsSync(path.join(DIST, exe))) {
-    files.add(exe);
-    const bm = `${exe}.blockmap`;
-    if (fs.existsSync(path.join(DIST, bm))) files.add(bm);
+  for (const exe of ['BlackHoleRecycleBin-Windows-x64.exe']) {
+    if (fs.existsSync(path.join(DIST, exe))) {
+      files.add(exe);
+      const bm = `${exe}.blockmap`;
+      if (fs.existsSync(path.join(DIST, bm))) files.add(bm);
+    }
+  }
+  for (const dmg of [
+    'BlackHoleRecycleBin-macOS-arm64.dmg',
+    'BlackHoleRecycleBin-macOS-x64.dmg',
+  ]) {
+    if (fs.existsSync(path.join(DIST, dmg))) files.add(dmg);
   }
   return [...files];
 }
@@ -124,15 +131,17 @@ async function api(method, apiPath, token, bodyObj) {
 }
 
 function releaseBody() {
+  const base = `https://github.com/${OWNER}/${REPO}/releases/latest/download`;
   return [
     `黑洞回收站 v${VERSION}`,
     '',
-    'Windows x64 安装包（含 electron-updater 所需 `latest.yml`）。',
+    '### Permanent direct download links',
     '',
-    '### 本版',
-    '- 键盘输入 / 听歌状态桌宠反馈',
-    '- 炼丹少年主题',
-    '- 三花小猫听歌 / 吃文件 SVG 动画',
+    `- Windows x64: ${base}/BlackHoleRecycleBin-Windows-x64.exe`,
+    `- macOS Apple Silicon: ${base}/BlackHoleRecycleBin-macOS-arm64.dmg`,
+    `- macOS Intel: ${base}/BlackHoleRecycleBin-macOS-x64.dmg`,
+    '',
+    'These URLs always resolve to the current `latest` release assets.',
   ].join('\n');
 }
 
@@ -172,7 +181,8 @@ async function clearAssets(token, release) {
     const name = String(a.name || '');
     if (
       name === 'latest.yml' ||
-      /^BlackHoleRecycleBin-Setup-.*\.exe(\.blockmap)?$/i.test(name)
+      name === 'latest-mac.yml' ||
+      /^BlackHoleRecycleBin-(Windows|macOS|Setup).*\.(exe|dmg)(\.blockmap)?$/i.test(name)
     ) {
       console.log('removing old asset', name, a.id);
       const r = await api('DELETE', `/repos/${OWNER}/${REPO}/releases/assets/${a.id}`, token);
