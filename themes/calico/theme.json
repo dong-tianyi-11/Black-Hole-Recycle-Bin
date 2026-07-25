@@ -54,6 +54,23 @@
     "eatOpen": ["calico-eat-open.png", "calico-eat-open.svg"],
     "eatChew": ["calico-eat-chew.png", "calico-eat-chew.svg"],
     "eatChew2": ["calico-eat-chew2.png", "calico-eat-chew.png"],
-    "eatChew3": ["calico-eat-chew3.png", "calico-eat-chew.png"]
+    "eatChew3": ["calico-eat-chew3.png", "calico-eat-chew.png"],
+    "miniIdle": ["calico-mini-idle.apng"],
+    "miniEnter": ["calico-mini-enter.apng"],
+    "miniPeek": ["calico-mini-peek.apng"],
+    "miniSleep": ["calico-mini-sleep.apng"]
+  },
+  "miniMode": {
+    "supported": true,
+    "flipAssets": true,
+    "offsetRatio": 0.4,
+    "scale": 1.15,
+    "offsetY": 65,
+    "states": {
+      "miniIdle": ["calico-mini-idle.apng"],
+      "miniEnter": ["calico-mini-enter.apng"],
+      "miniPeek": ["calico-mini-peek.apng"],
+      "miniSleep": ["calico-mini-sleep.apng"]
+    }
   }
 }

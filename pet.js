@@ -7,6 +7,7 @@
   const CHEW_FRAME_MS = 110;
   const EAT_KEYS = ['eatOpen', 'eatChew', 'eatChew2', 'eatChew3'];
   const SLEEP_KEYS = ['sleeping', 'dozing', 'collapsing', 'yawning', 'waking'];
+  const MINI_KEYS = ['miniIdle', 'miniEnter', 'miniPeek', 'miniSleep'];
 
   const CYCLE_CANDIDATES = [
     { state: 'idle', hold: 9000 },
@@ -45,6 +46,7 @@
       this._busyUntil = 0;
       this._chewTimer = null;
       this._chewIdx = 0;
+      this._miniMode = false;
       this.assetBase = '';
       this.assetMap = {};
       this.timings = {};
@@ -75,6 +77,14 @@
       if (key === 'reactDrag') return this.assetMap.reactDrag || this.assetMap.reactPoke || this.assetMap.idle || null;
       if (key === 'reactPoke') return this.assetMap.reactPoke || this.assetMap.attention || this.assetMap.idle || null;
       if (key === 'error') return this.assetMap.error || this.assetMap.yawning || this.assetMap.idle || null;
+      if (key === 'miniIdle' || key === 'miniEnter' || key === 'miniPeek' || key === 'miniSleep') {
+        return (
+          this.assetMap[key] ||
+          this.assetMap.miniIdle ||
+          this.assetMap.idle ||
+          null
+        );
+      }
       if (key === 'attention' || key === 'notification' || key === 'thinking' || key === 'working') {
         return this.assetMap[key] || this.assetMap.reactPoke || this.assetMap.idle || null;
       }
@@ -154,9 +164,56 @@
         this._busyUntil = Date.now() + ms;
         this.later(() => {
           this.locked = false;
-          if (this.enabled) this.play('idle');
+          if (!this.enabled) return;
+          if (this._miniMode) {
+            this.play(this._dnd ? 'miniSleep' : 'miniIdle', { force: true });
+          } else {
+            this.play('idle');
+          }
         }, ms);
       }
+    }
+
+    setMiniMode(on) {
+      this._miniMode = !!on;
+      if (!this.enabled) return;
+      if (this._miniMode) {
+        this.clearTimers();
+        this.locked = false;
+        this._feeding = false;
+        // Visual state applied via playMiniState from main process
+      } else {
+        this.locked = false;
+        this.clearTimers();
+        if (this._dnd) {
+          this.play('sleeping', { force: true });
+        } else {
+          this.play('idle', { force: true });
+          this.scheduleCycle();
+          this.scheduleSleepWatch();
+        }
+      }
+    }
+
+    playMiniState(key) {
+      if (!this.enabled || !this._miniMode) return;
+      const k = key || 'miniIdle';
+      if (!this._resolveFile(k) && !this._resolveFile('miniIdle') && !this._resolveFile('idle')) {
+        return;
+      }
+      if (k === 'miniEnter') {
+        this.play('miniEnter', {
+          lock: true,
+          holdMs: this.timings.miniEnter || 1200,
+          force: true,
+        });
+      } else {
+        this.play(k, { force: true });
+      }
+    }
+
+    hasMiniAssets() {
+      return !!(this.assetMap.miniIdle || this.assetMap.miniEnter || this.assetMap.miniPeek);
     }
 
     startChewLoop() {
@@ -196,11 +253,15 @@
       if (!this.enabled) return;
       const step = () => {
         if (!this.enabled) return;
+        if (this._miniMode) {
+          this.later(step, 2000);
+          return;
+        }
         if (this.locked || Date.now() < this._busyUntil) {
           this.later(step, 800);
           return;
         }
-        if ([...SLEEP_KEYS, ...EAT_KEYS].includes(this.state)) {
+        if ([...SLEEP_KEYS, ...EAT_KEYS, ...MINI_KEYS].includes(this.state)) {
           this.later(step, 1000);
           return;
         }
@@ -214,7 +275,10 @@
 
     scheduleSleepWatch() {
       const tick = () => {
-        if (!this.enabled || this._dnd) return;
+        if (!this.enabled || this._dnd || this._miniMode) {
+          this.later(tick, 4000);
+          return;
+        }
         const idleMs = Date.now() - this._lastPointer;
         if (!this.locked && idleMs > 60000 && !SLEEP_KEYS.includes(this.state)) {
           this.startSleepSequence();
@@ -301,6 +365,7 @@
     poke() {
       if (!this.enabled) return;
       if (this._dnd) return;
+      if (this._miniMode) return;
       this.notePointer();
       if (['sleeping', 'dozing', 'collapsing', 'yawning'].includes(this.state)) {
         this.wake();
@@ -311,12 +376,14 @@
     }
 
     onWindowDragStart() {
-      if (!this.enabled || this._dnd) return;
+      if (!this.enabled || this._dnd || this._miniMode) return;
       if (EAT_KEYS.includes(this.state)) return;
-      // Freeze current frame — switching to reactDrag APNG looked larger than idle
       this._windowDragging = true;
       this.clearTimers();
+      this.play('reactDrag', { force: true });
+      // Keep locked for the whole drag (play() without lock would unlock)
       this.locked = true;
+      this._busyUntil = Date.now() + 86400000;
     }
 
     onWindowDragEnd() {
@@ -324,7 +391,8 @@
       if (!this._windowDragging && this.state !== 'reactDrag') return;
       this._windowDragging = false;
       this.locked = false;
-      if (this.state === 'reactDrag') this.play('idle');
+      this._busyUntil = 0;
+      this.play('idle', { force: true });
       if (!this._dnd && !this._feeding) {
         this.scheduleCycle();
         this.scheduleSleepWatch();
@@ -333,10 +401,6 @@
 
     beginFeedExpect() {
       if (!this.enabled || this._feeding || this._dnd) return;
-      if (this.state === 'eatOpen' && this.locked) {
-        this._busyUntil = Date.now() + 60000;
-        return;
-      }
       this.notePointer();
       this.clearTimers();
       this.play('eatOpen', { force: true });
@@ -349,14 +413,13 @@
     endFeedExpect() {
       if (!this.enabled) return;
       if (this._feeding) return;
-      if (!EAT_KEYS.includes(this.state) && !this.img?.classList.contains('pet-eating-open')) {
-        return;
-      }
       this.locked = false;
       this._busyUntil = 0;
       this.stopChewLoop();
       this.img?.classList.remove('pet-eating-open', 'pet-chewing');
-      this.play('idle', { force: true });
+      if (EAT_KEYS.includes(this.state) || this.state === 'eatOpen') {
+        this.play('idle', { force: true });
+      }
       this.scheduleCycle();
       this.scheduleSleepWatch();
     }

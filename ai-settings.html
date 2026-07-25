@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 设置</title>
+  <style>
+    :root {
+      --bg: #12141a;
+      --panel: #1c2029;
+      --line: #2c3340;
+      --text: #e8ecf4;
+      --muted: #8b93a7;
+      --accent: #e8a54b;
+      --accent-dim: #b87a28;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      padding: 18px 20px 16px;
+      gap: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+    }
+    p.hint {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 9px 11px;
+      font-size: 13px;
+      outline: none;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    input:focus {
+      border-color: var(--accent-dim);
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: auto;
+      padding-top: 8px;
+    }
+    button {
+      flex: 1;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button.primary {
+      background: linear-gradient(180deg, #f0b45a, var(--accent-dim));
+      color: #1a1208;
+      font-weight: 650;
+    }
+    button.ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    button:disabled { opacity: 0.55; cursor: default; }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    .msg {
+      min-height: 1.2em;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .msg.err { color: #ff8e8e; }
+    .msg.ok { color: #8fd49a; }
+  </style>
+</head>
+<body>
+  <h1>AI 主题生成设置</h1>
+  <p class="hint">API Key 使用系统加密保存在用户目录，更新安装不会清除。兼容 OpenAI 及同格式接口。</p>
+
+  <label>API Key
+    <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false" />
+  </label>
+  <label>Base URL
+    <input id="baseUrl" type="text" placeholder="https://api.openai.com/v1" spellcheck="false" />
+  </label>
+  <label>模型
+    <input id="model" type="text" placeholder="gpt-4o" spellcheck="false" />
+  </label>
+  <div class="msg" id="msg"></div>
+  <div class="row">
+    <button class="ghost" id="cancel" type="button">取消</button>
+    <button class="ghost" id="test" type="button">测试连接</button>
+    <button class="primary" id="save" type="button">保存</button>
+  </div>
+  <script>
+    const apiKey = document.getElementById('apiKey');
+    const baseUrl = document.getElementById('baseUrl');
+    const model = document.getElementById('model');
+    const msg = document.getElementById('msg');
+    const testBtn = document.getElementById('test');
+
+    function setMsg(text, ok) {
+      msg.textContent = text || '';
+      msg.className = 'msg' + (text ? (ok ? ' ok' : ' err') : '');
+    }
+
+    function payload() {
+      return {
+        apiKey: apiKey.value.trim(),
+        baseUrl: baseUrl.value.trim(),
+        model: model.value.trim(),
+      };
+    }
+
+    (async () => {
+      try {
+        const cfg = await window.aiSettings.get();
+        apiKey.value = cfg.apiKey || '';
+        baseUrl.value = cfg.baseUrl || '';
+        model.value = cfg.model || '';
+      } catch (e) {
+        setMsg(e.message || String(e), false);
+      }
+    })();
+
+    document.getElementById('cancel').onclick = () => window.aiSettings.close();
+    testBtn.onclick = async () => {
+      setMsg('正在测试…', true);
+      testBtn.disabled = true;
+      try {
+        const r = await window.aiSettings.test(payload());
+        setMsg(r.message || (r.ok ? '连接成功' : '连接失败'), !!r.ok);
+      } catch (e) {
+        setMsg(e.message || String(e), false);
+      } finally {
+        testBtn.disabled = false;
+      }
+    };
+    document.getElementById('save').onclick = async () => {
+      setMsg('');
+      try {
+        await window.aiSettings.save(payload());
+        window.aiSettings.close();
+      } catch (e) {
+        setMsg(e.message || String(e), false);
+      }
+    };
+  </script>
+</body>
+</html>

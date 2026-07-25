@@ -135,6 +135,32 @@ function normalizeTheme(id, raw, themeDir, source) {
   const timings = { ...DEFAULT_TIMINGS, ...(raw.timings || {}) };
   const sleepSequence = raw.sleepSequence || { mode: type === 'pet' ? 'direct' : 'full' };
 
+  // Mini mode: always available; optional assets + offsetRatio from theme.json
+  const miniRaw = raw.miniMode || {};
+  const miniStatesRaw = miniRaw.states || {};
+  const miniAssetMap = {};
+  for (const [key, entry] of Object.entries(miniStatesRaw)) {
+    const { files } = resolveStateEntry(entry);
+    const file = type === 'blackhole' ? null : firstExistingFile(assetsDir, files);
+    if (file) miniAssetMap[key] = file;
+  }
+  // Also allow mini states listed in main states map (camelCase keys)
+  for (const key of ['miniIdle', 'miniEnter', 'miniPeek', 'miniSleep']) {
+    if (!miniAssetMap[key] && assetMap[key]) miniAssetMap[key] = assetMap[key];
+  }
+  const offsetRatio =
+    typeof miniRaw.offsetRatio === 'number' && miniRaw.offsetRatio > 0 && miniRaw.offsetRatio < 1
+      ? miniRaw.offsetRatio
+      : 0.486;
+  const miniMode = {
+    supported: miniRaw.supported !== false,
+    flipAssets: !!miniRaw.flipAssets,
+    offsetRatio,
+    scale: typeof miniRaw.scale === 'number' && miniRaw.scale > 0 ? miniRaw.scale : 1,
+    offsetY: typeof miniRaw.offsetY === 'number' ? miniRaw.offsetY : 0,
+    states: miniAssetMap,
+  };
+
   // Relative URL base for renderer (file:// via loadFile resolves against app root for builtins)
   let assetBase;
   if (type === 'blackhole') {
@@ -145,6 +171,9 @@ function normalizeTheme(id, raw, themeDir, source) {
     // User themes served via custom protocol or absolute file URL
     assetBase = pathToFileUrl(path.join(themeDir, 'assets')) + '/';
   }
+
+  // Merge mini assets into assetMap for pet.js
+  Object.assign(assetMap, miniAssetMap);
 
   return {
     id,
@@ -162,6 +191,7 @@ function normalizeTheme(id, raw, themeDir, source) {
     assetMap,
     timings,
     sleepSequence,
+    miniMode,
     eatLabel: raw.eatLabel || (id === 'calico' ? '小猫' : '宠物'),
     toastOk: raw.toastOk || null,
     toastFail: raw.toastFail || null,
@@ -220,6 +250,7 @@ function discoverThemes() {
       assetMap: {},
       timings: DEFAULT_TIMINGS,
       sleepSequence: { mode: 'direct' },
+      miniMode: { supported: true, offsetRatio: 0.486, states: {} },
       eatLabel: '黑洞',
     });
   }
@@ -263,6 +294,7 @@ function themePayload(theme) {
     timings: theme.timings || DEFAULT_TIMINGS,
     sleepSequence: theme.sleepSequence || { mode: 'direct' },
     aspect: theme.aspect != null ? theme.aspect : 1,
+    miniMode: theme.miniMode || { supported: true, offsetRatio: 0.486, states: {} },
     eatLabel: theme.eatLabel,
     toastOk: theme.toastOk,
     toastFail: theme.toastFail,

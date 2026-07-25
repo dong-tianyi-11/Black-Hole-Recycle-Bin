@@ -8,7 +8,7 @@
  *   https://gitee.com/{owner}/{repo}/releases/download/latest/latest.yml
  *   + installer exe / blockmap attached to the same release
  */
-const { app, shell, dialog } = require('electron');
+const { app, shell, dialog, Notification } = require('electron');
 const path = require('path');
 const https = require('https');
 const fs = require('fs');
@@ -52,26 +52,78 @@ function createUpdater(opts = {}) {
   const saveConfig = opts.saveConfig || (() => {});
   const rebuildMenus = opts.rebuildMenus || (() => {});
   const getParentWindow = opts.getParentWindow || (() => null);
+  const setTrayTooltip = opts.setTrayTooltip || (() => {});
 
   let status = 'idle'; // idle | checking | available | downloading | ready
   let availableVersion = null;
   let autoUpdater = null;
   let schedulerTimer = null;
   let manualCheckPending = false;
+  /** Avoid re-notifying the same version too often (background checks). */
+  let lastNotifiedVersion = null;
+  let lastNotifiedAt = 0;
   const publish = readPublishConfig();
 
   function menuLabel() {
     if (status === 'checking') return '正在检查更新…';
     if (status === 'downloading') return '正在下载更新…';
     if (status === 'ready') return `更新已就绪 · 重启安装`;
-    if (status === 'available' && availableVersion) return `有新版本 v${availableVersion}`;
+    if (status === 'available' && availableVersion) return `⭐ 有新版本 v${availableVersion}`;
     return '检查更新';
+  }
+
+  function refreshTrayTip() {
+    if (status === 'ready' && availableVersion) {
+      setTrayTooltip(`黑洞回收站 · 更新已就绪 v${availableVersion}`);
+    } else if (status === 'downloading' && availableVersion) {
+      setTrayTooltip(`黑洞回收站 · 正在下载 v${availableVersion}`);
+    } else if (status === 'available' && availableVersion) {
+      setTrayTooltip(`黑洞回收站 · 有新版本 v${availableVersion}`);
+    } else {
+      setTrayTooltip('黑洞回收站');
+    }
   }
 
   function setStatus(next, version = availableVersion) {
     status = next;
     availableVersion = version;
+    refreshTrayTip();
     rebuildMenus();
+  }
+
+  /**
+   * Tell the user a newer build exists.
+   * Manual check → modal dialog.
+   * Background check → Windows/macOS notification (click opens download dialog).
+   */
+  async function announceUpdate(version, canDownload, { forceDialog = false } = {}) {
+    setStatus('available', version);
+
+    if (forceDialog) {
+      await promptUpdate(version, canDownload);
+      return;
+    }
+
+    const now = Date.now();
+    const sameRecently =
+      lastNotifiedVersion === version && now - lastNotifiedAt < 6 * 60 * 60 * 1000;
+    if (sameRecently) return;
+    lastNotifiedVersion = version;
+    lastNotifiedAt = now;
+
+    if (Notification.isSupported()) {
+      const n = new Notification({
+        title: '发现新版本',
+        body: `黑洞回收站 v${version} 可用\n点击此通知即可下载更新`,
+        silent: false,
+      });
+      n.on('click', () => {
+        promptUpdate(version, canDownload).catch(() => {});
+      });
+      n.show();
+    } else {
+      await promptUpdate(version, canDownload);
+    }
   }
 
   function httpsJson(url) {
@@ -121,9 +173,9 @@ function createUpdater(opts = {}) {
 
       autoUpdater.on('checking-for-update', () => setStatus('checking'));
       autoUpdater.on('update-available', (info) => {
+        const wasManual = manualCheckPending;
         manualCheckPending = false;
-        setStatus('available', info.version);
-        promptUpdate(info.version, true);
+        announceUpdate(info.version, true, { forceDialog: wasManual }).catch(() => {});
       });
       autoUpdater.on('update-not-available', () => {
         const wasManual = manualCheckPending;
@@ -137,11 +189,11 @@ function createUpdater(opts = {}) {
           });
         }
       });
-      autoUpdater.on('download-progress', () => setStatus('downloading'));
+      autoUpdater.on('download-progress', () => setStatus('downloading', availableVersion));
       autoUpdater.on('update-downloaded', (info) => {
         manualCheckPending = false;
         setStatus('ready', info.version);
-        promptRestart(info.version);
+        promptRestart(info.version).catch(() => {});
       });
       autoUpdater.on('error', (err) => {
         console.warn('[updater]', err?.message || err);
@@ -264,10 +316,9 @@ function createUpdater(opts = {}) {
       const version = await resolveRemoteVersion();
       const current = app.getVersion();
       if (version && version !== current && isNewer(version, current)) {
-        setStatus('available', version);
-        if (manual) {
-          await promptUpdate(version, process.platform === 'win32' && !!autoUpdater);
-        }
+        await announceUpdate(version, process.platform === 'win32' && !!autoUpdater, {
+          forceDialog: !!manual,
+        });
       } else {
         setStatus('idle', null);
         if (manual) {
@@ -354,13 +405,20 @@ function createUpdater(opts = {}) {
     if (cfg.autoUpdateCheck === false) return;
     if (!app.isPackaged) return;
 
-    const first = 2 * 60 * 1000 + Math.random() * 3 * 60 * 1000;
+    // First check soon after launch so users see the tip early
+    const first = 25 * 1000 + Math.random() * 20 * 1000;
     const every = 12 * 60 * 60 * 1000;
 
     const tick = async () => {
       try {
         if (getConfig().autoUpdateCheck === false) return;
         if (status === 'downloading' || status === 'ready') return;
+        // Already know an update exists — keep tray tip, don't re-check spam
+        if (status === 'available' && availableVersion) {
+          refreshTrayTip();
+          rebuildMenus();
+          return;
+        }
         if (process.platform === 'win32' && autoUpdater) {
           await autoUpdater.checkForUpdates();
         } else {

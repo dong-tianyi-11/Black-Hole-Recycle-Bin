@@ -1,6 +1,6 @@
 {
   "name": "black-hole-recycle-bin",
-  "version": "1.0.1",
+  "version": "1.0.8",
   "description": "Interstellar-style desktop black hole pet that sends dropped files to the Recycle Bin",
   "main": "main.js",
   "author": "",
@@ -52,8 +52,15 @@
       "recycle.js",
       "theme-loader.js",
       "theme-importer.js",
+      "theme-from-image.js",
+      "ai-secrets.js",
+      "ai-settings.html",
+      "ai-settings-preload.js",
+      "size-settings.html",
+      "size-settings-preload.js",
       "screen-clamp.js",
       "updater.js",
+      "mini.js",
       "tray.png",
       "package.json",
       "assets/**/*",
@@ -75,7 +82,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -84,16 +93,21 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "黑洞回收站"
+      "shortcutName": "黑洞回收站",
+      "deleteAppDataOnUninstall": false
     },
     "mac": {
       "icon": "build/icon.png",
       "artifactName": "BlackHoleRecycleBin-${version}-${arch}.${ext}",
       "category": "public.app-category.utilities",
+      "minimumSystemVersion": "11.0",
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "extendInfo": {

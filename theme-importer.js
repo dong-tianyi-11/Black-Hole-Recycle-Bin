@@ -1,6 +1,5 @@
 /**
- * User theme zip import — adapted from clawd-on-desk (simplified).
- * Zip must contain exactly one theme.json at root or one folder deep.
+ * User theme helpers: zip import + delete.
  */
 const fs = require('fs');
 const path = require('path');
@@ -63,9 +62,6 @@ function validateTheme(raw, root) {
   if (type === 'blackhole') throw new Error('用户主题仅支持 type: pet');
   const states = raw.states || {};
   if (!states.idle) throw new Error('theme.json 缺少必填状态 idle');
-  if (!states.eatOpen && !states.eatChew) {
-    throw new Error('theme.json 建议至少提供 eatOpen / eatChew（吃文件动画）');
-  }
   const assetsDir = path.join(root, 'assets');
   if (!fs.existsSync(assetsDir)) throw new Error('缺少 assets/ 目录');
 
@@ -113,10 +109,7 @@ async function importUserThemeZip(zipPath, userThemesDir) {
     if (stat.size > MAX_THEME_ZIP_BYTES) throw new Error('主题包超过 80MB');
 
     fs.mkdirSync(userThemesDir, { recursive: true });
-    const staging = path.join(
-      os.tmpdir(),
-      `bh-theme-import-${process.pid}-${Date.now()}`
-    );
+    const staging = path.join(os.tmpdir(), `bh-theme-import-${process.pid}-${Date.now()}`);
     rmDir(staging);
     fs.mkdirSync(staging, { recursive: true });
 
@@ -137,7 +130,6 @@ async function importUserThemeZip(zipPath, userThemesDir) {
       }
 
       copyDir(root, dest);
-      // Ensure id field matches folder
       try {
         const tj = path.join(dest, 'theme.json');
         const j = readJson(tj);
@@ -163,32 +155,6 @@ async function importUserThemeZip(zipPath, userThemesDir) {
   }
 }
 
-/**
- * Scaffold a new theme folder from built-in template.
- */
-function createThemeScaffold(userThemesDir, templateSrc, themeId, options = {}) {
-  const id = sanitizeThemeDirName(themeId);
-  if (!id) throw new Error('主题 id 无效');
-  if (RESERVED_THEME_IDS.has(id.toLowerCase())) {
-    throw new Error(`主题 id「${id}」为保留名`);
-  }
-  if (!userThemesDir || !fs.existsSync(templateSrc)) {
-    throw new Error('模板或用户主题目录不可用');
-  }
-  const dest = path.join(userThemesDir, id);
-  if (fs.existsSync(dest)) throw new Error(`主题「${id}」已存在`);
-  copyDir(templateSrc, dest);
-  const tj = path.join(dest, 'theme.json');
-  const raw = readJson(tj);
-  delete raw._scaffoldOnly;
-  delete raw._comment;
-  raw.id = id;
-  raw.name = options.name || id;
-  if (options.author) raw.author = options.author;
-  fs.writeFileSync(tj, JSON.stringify(raw, null, 2), 'utf8');
-  return { themeId: id, path: dest, name: raw.name };
-}
-
 function removeUserTheme(userThemesDir, themeId) {
   const id = sanitizeThemeDirName(themeId);
   if (!id || RESERVED_THEME_IDS.has(id.toLowerCase())) {
@@ -202,7 +168,6 @@ function removeUserTheme(userThemesDir, themeId) {
 
 module.exports = {
   importUserThemeZip,
-  createThemeScaffold,
   removeUserTheme,
   sanitizeThemeDirName,
   RESERVED_THEME_IDS,

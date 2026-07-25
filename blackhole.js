@@ -23,7 +23,10 @@
     uniform float u_hasDesktop;
     uniform float u_hasPlate;
     uniform float u_padRatio;
+    uniform float u_deskMix;
+    uniform float u_hasDesktopPrev;
     uniform sampler2D u_desktop;
+    uniform sampler2D u_desktopPrev;
     uniform sampler2D u_plate;
 
     float hash(vec2 p) {
@@ -85,18 +88,24 @@
       return vec2(bent.x / aspect, bent.y) * 0.5 + 0.5;
     }
 
-    vec3 sampleDesktopWarped(vec2 pf, float eh, float aspect) {
-      // Chromatic aberration under strong lensing
+    vec3 sampleDesktopAt(sampler2D tex, vec2 pf, float eh, float aspect) {
       float aberr = 0.012 * clamp((eh / max(length(pf), 1e-4)) * 1.5, 0.0, 1.5);
       vec2 dir = normalize(pf + 1e-5);
       vec2 luR = clamp(windowToCaptureUV(lensUV(pf + dir * aberr, eh, aspect)), 0.001, 0.999);
       vec2 luG = clamp(windowToCaptureUV(lensUV(pf, eh, aspect)), 0.001, 0.999);
       vec2 luB = clamp(windowToCaptureUV(lensUV(pf - dir * aberr, eh, aspect)), 0.001, 0.999);
       return vec3(
-        texture2D(u_desktop, luR).r,
-        texture2D(u_desktop, luG).g,
-        texture2D(u_desktop, luB).b
+        texture2D(tex, luR).r,
+        texture2D(tex, luG).g,
+        texture2D(tex, luB).b
       );
+    }
+
+    vec3 sampleDesktopWarped(vec2 pf, float eh, float aspect) {
+      vec3 cur = sampleDesktopAt(u_desktop, pf, eh, aspect);
+      if (u_hasDesktopPrev < 0.5) return cur;
+      vec3 prev = sampleDesktopAt(u_desktopPrev, pf, eh, aspect);
+      return mix(prev, cur, clamp(u_deskMix, 0.0, 1.0));
     }
 
     // Reference plate palette: white → gold → amber → deep ember
@@ -298,8 +307,11 @@
       this.feed = 0;
       this.intensity = 1.15;
       this.hasDesktop = 0;
+      this.hasDesktopPrev = 0;
       this.hasPlate = 0;
       this.padRatio = 0.38;
+      this.deskMix = 1;
+      this._lastFrameTime = 0;
       this.enabled = true;
       this.lowPower = false;
       this._skipFrames = 0;
@@ -313,13 +325,19 @@
         gl.STATIC_DRAW
       );
 
-      this.desktopTex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, this.desktopTex);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+      const makeTex = () => {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+        return tex;
+      };
+
+      this.desktopTex = makeTex();
+      this.desktopTexPrev = makeTex();
 
       this.plateTex = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, this.plateTex);
@@ -336,9 +354,12 @@
         feed: gl.getUniformLocation(this.program, 'u_feed'),
         intensity: gl.getUniformLocation(this.program, 'u_intensity'),
         hasDesktop: gl.getUniformLocation(this.program, 'u_hasDesktop'),
+        hasDesktopPrev: gl.getUniformLocation(this.program, 'u_hasDesktopPrev'),
         hasPlate: gl.getUniformLocation(this.program, 'u_hasPlate'),
         padRatio: gl.getUniformLocation(this.program, 'u_padRatio'),
+        deskMix: gl.getUniformLocation(this.program, 'u_deskMix'),
         desktop: gl.getUniformLocation(this.program, 'u_desktop'),
+        desktopPrev: gl.getUniformLocation(this.program, 'u_desktopPrev'),
         plate: gl.getUniformLocation(this.program, 'u_plate'),
       };
 
@@ -390,7 +411,9 @@
     }
 
     triggerFeed(strength = 1) {
-      this.feed = Math.min(1.8, this.feed + strength);
+      this.feed = Math.min(2.2, this.feed + strength);
+      // Keep animation alive longer while feeding
+      if (this.lowPower) this._skipFrames = 0;
     }
 
     async updateDesktopTexture(uint8Array, padRatio, mime = 'image/jpeg') {
@@ -399,11 +422,25 @@
         const blob = new Blob([uint8Array], { type: mime });
         const bitmap = await createImageBitmap(blob);
         const gl = this.gl;
+
+        const midFade = this.hasDesktopPrev && this.deskMix < 0.92;
+        if (this.hasDesktop && !midFade) {
+          // Ping-pong: keep previous desktop for a short crossfade
+          const tmp = this.desktopTexPrev;
+          this.desktopTexPrev = this.desktopTex;
+          this.desktopTex = tmp;
+          this.hasDesktopPrev = 1;
+          this.deskMix = 0;
+        }
+        // Mid-fade: only replace the fade *target* so rapid plate refreshes
+        // (alt-tab / window switch) don't restart the blend and pop.
+
         gl.bindTexture(gl.TEXTURE_2D, this.desktopTex);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
         bitmap.close?.();
         this.hasDesktop = 1;
+        if (!this.hasDesktopPrev) this.deskMix = 1;
         if (typeof padRatio === 'number') this.padRatio = padRatio;
       } catch (err) {
         console.error('desktop texture update failed', err);
@@ -419,7 +456,7 @@
       }
 
       // Low-power: skip most frames when idle (no feed pulse)
-      if (this.lowPower && this.feed < 0.02) {
+      if (this.lowPower && this.feed < 0.02 && !(this.hasDesktopPrev && this.deskMix < 1)) {
         this._skipFrames = (this._skipFrames + 1) % 4;
         if (this._skipFrames !== 0) {
           this._raf = requestAnimationFrame((nt) => this.frame(nt));
@@ -428,7 +465,18 @@
       }
 
       const t = (now - this._start) / 1000;
-      this.feed = Math.max(0, this.feed - 0.015);
+      const dt = this._lastFrameTime ? Math.min(0.05, (now - this._lastFrameTime) / 1000) : 0.016;
+      this._lastFrameTime = now;
+      this.feed = Math.max(0, this.feed - (this.feed > 0.8 ? 0.012 : 0.018));
+
+      // Ease desktop crossfade (~650ms, smoothstep) so window-switch updates don't pop
+      let deskMixUniform = this.deskMix;
+      if (this.hasDesktopPrev && this.deskMix < 1) {
+        this.deskMix = Math.min(1, this.deskMix + dt / 0.65);
+        const u = this.deskMix;
+        deskMixUniform = u * u * (3 - 2 * u);
+        if (this.deskMix >= 1) this.hasDesktopPrev = 0;
+      }
 
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -440,6 +488,9 @@
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.desktopTex);
       gl.uniform1i(this.uniforms.desktop, 0);
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, this.desktopTexPrev);
+      gl.uniform1i(this.uniforms.desktopPrev, 2);
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, this.plateTex);
       gl.uniform1i(this.uniforms.plate, 1);
@@ -449,8 +500,10 @@
       gl.uniform1f(this.uniforms.feed, this.feed);
       gl.uniform1f(this.uniforms.intensity, this.intensity);
       gl.uniform1f(this.uniforms.hasDesktop, this.hasDesktop);
+      gl.uniform1f(this.uniforms.hasDesktopPrev, this.hasDesktopPrev);
       gl.uniform1f(this.uniforms.hasPlate, this.hasPlate);
       gl.uniform1f(this.uniforms.padRatio, this.padRatio);
+      gl.uniform1f(this.uniforms.deskMix, deskMixUniform);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
       this._raf = requestAnimationFrame((nt) => this.frame(nt));

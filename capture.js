@@ -5,12 +5,10 @@ let plateImage = null;
 let plateDisplayId = null;
 let plateThumbSize = { width: 0, height: 0 };
 let plateDisplayBounds = null;
+/** Bumps whenever the full-screen plate is replaced — used to skip redundant crops. */
+let plateGeneration = 0;
 
 const PAD_RATIO = 0.38;
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function pickSource(sources, display) {
   const displayId = String(display.id);
@@ -21,7 +19,11 @@ function pickSource(sources, display) {
   );
 }
 
-async function refreshDesktopPlate(display) {
+function getPlateGeneration() {
+  return plateGeneration;
+}
+
+async function refreshDesktopPlate(display, { maxWidth = 1600 } = {}) {
   if (capturing) return false;
   capturing = true;
   try {
@@ -29,8 +31,7 @@ async function refreshDesktopPlate(display) {
     const sf = target.scaleFactor || 1;
     const physW = Math.round(target.size.width * sf);
     const physH = Math.round(target.size.height * sf);
-    const maxW = 1920;
-    const thumbW = Math.min(physW, maxW);
+    const thumbW = Math.min(physW, maxWidth);
     const thumbH = Math.max(1, Math.round(physH * (thumbW / physW)));
 
     const sources = await desktopCapturer.getSources({
@@ -47,6 +48,7 @@ async function refreshDesktopPlate(display) {
     plateDisplayId = String(target.id);
     plateThumbSize = thumb.getSize();
     plateDisplayBounds = { ...target.bounds };
+    plateGeneration += 1;
     return true;
   } catch (err) {
     console.error('[plate]', err);
@@ -75,10 +77,10 @@ function cropPlateForWindow(win) {
   const relX = bounds.x - db.x;
   const relY = bounds.y - db.y;
 
-  let cropX = Math.floor(((relX - pad) * tw) / db.width);
-  let cropY = Math.floor(((relY - pad) * th) / db.height);
-  let cropW = Math.ceil(((bounds.width + pad * 2) * tw) / db.width);
-  let cropH = Math.ceil(((bounds.height + pad * 2) * th) / db.height);
+  let cropX = Math.round(((relX - pad) * tw) / db.width);
+  let cropY = Math.round(((relY - pad) * th) / db.height);
+  let cropW = Math.round(((bounds.width + pad * 2) * tw) / db.width);
+  let cropH = Math.round(((bounds.height + pad * 2) * th) / db.height);
 
   cropX = Math.max(0, cropX);
   cropY = Math.max(0, cropY);
@@ -87,14 +89,14 @@ function cropPlateForWindow(win) {
 
   try {
     const cropped = plateImage.crop({ x: cropX, y: cropY, width: cropW, height: cropH });
-    // JPEG is much faster than PNG — critical for smooth feel
-    const jpeg = cropped.toJPEG(68);
+    const jpeg = cropped.toJPEG(82);
     return {
       data: jpeg,
       mime: 'image/jpeg',
       padRatio: PAD_RATIO,
       width: cropW,
       height: cropH,
+      cropKey: `${plateGeneration}|${cropX}|${cropY}|${cropW}|${cropH}`,
     };
   } catch (err) {
     console.error('[crop]', err);
@@ -102,25 +104,28 @@ function cropPlateForWindow(win) {
   }
 }
 
-async function refreshPlateHidden(win) {
+/**
+ * Refresh desktop underlay WITHOUT hiding the window.
+ * Relies on BrowserWindow.setContentProtection(true) so Windows
+ * excludes this HWND from capture (desktop shows through).
+ */
+async function refreshPlateLive(win) {
   if (!win || win.isDestroyed() || capturing) return false;
   const display = screen.getDisplayMatching(win.getBounds());
-  const wasVisible = win.isVisible();
-  try {
-    if (wasVisible) {
-      win.hide();
-      await sleep(40);
-    }
-    return await refreshDesktopPlate(display);
-  } finally {
-    if (wasVisible && win && !win.isDestroyed()) win.showInactive();
-  }
+  return refreshDesktopPlate(display, { maxWidth: 1600 });
+}
+
+// Back-compat alias — never hides
+async function refreshPlateHidden(win) {
+  return refreshPlateLive(win);
 }
 
 module.exports = {
   PAD_RATIO,
   refreshDesktopPlate,
   refreshPlateHidden,
+  refreshPlateLive,
   cropPlateForWindow,
   hasPlate,
+  getPlateGeneration,
 };

@@ -9,5 +9,9 @@
   "viewBox": { "x": 0, "y": 0, "width": 1, "height": 1 },
   "eatLabel": "黑洞",
   "toastOk": "已送入回收站",
-  "toastFail": "吸入失败"
+  "toastFail": "吸入失败",
+  "miniMode": {
+    "supported": true,
+    "offsetRatio": 0.486
+  }
 }

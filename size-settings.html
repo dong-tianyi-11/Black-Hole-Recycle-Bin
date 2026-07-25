@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>调整尺寸</title>
+  <style>
+    :root {
+      --bg: #12141a;
+      --panel: #1c2029;
+      --line: #2c3340;
+      --text: #e8ecf4;
+      --muted: #8b93a7;
+      --accent: #e8a54b;
+      --accent-dim: #b87a28;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      padding: 18px 20px 16px;
+      gap: 14px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 650;
+    }
+    p.hint {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .value-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .value-row strong {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--accent);
+    }
+    .value-row span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      height: 28px;
+      cursor: pointer;
+    }
+    .num-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .num-row label {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .num-row input[type="text"] {
+      flex: 1;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 9px 11px;
+      font-size: 14px;
+      outline: none;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    .num-row input[type="text"]:focus {
+      border-color: var(--accent-dim);
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: auto;
+      padding-top: 4px;
+    }
+    button {
+      flex: 1;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button.primary {
+      background: linear-gradient(180deg, #f0b45a, var(--accent-dim));
+      color: #1a1208;
+      font-weight: 650;
+    }
+    button.ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+  </style>
+</head>
+<body>
+  <h1>调整尺寸</h1>
+  <p class="hint">拖动滑块选大小，松手或点「应用」后桌宠才会变（避免闪烁）。范围 160–720。</p>
+  <div class="value-row">
+    <strong id="label">360</strong>
+    <span>选定大小</span>
+  </div>
+  <input id="range" type="range" min="160" max="720" step="1" value="360" />
+  <div class="num-row">
+    <label for="num">精确值</label>
+    <input id="num" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" value="360" />
+  </div>
+  <div class="row">
+    <button class="ghost" id="cancel" type="button">取消</button>
+    <button class="primary" id="apply" type="button">应用</button>
+  </div>
+  <script>
+    const range = document.getElementById('range');
+    const num = document.getElementById('num');
+    const label = document.getElementById('label');
+    const MIN = 160;
+    const MAX = 720;
+
+    let pending = 360;
+    let initial = 360;
+
+    function clamp(n) {
+      n = Math.round(Number(n));
+      if (!Number.isFinite(n)) n = MIN;
+      return Math.max(MIN, Math.min(MAX, n));
+    }
+
+    function setUi(n, { fillNum = true } = {}) {
+      pending = clamp(n);
+      range.value = String(pending);
+      label.textContent = String(pending);
+      if (fillNum && document.activeElement !== num) {
+        num.value = String(pending);
+      }
+    }
+
+    function commitNum() {
+      const raw = String(num.value || '').trim();
+      const n = clamp(raw === '' ? pending : raw);
+      num.value = String(n);
+      setUi(n, { fillNum: true });
+      return n;
+    }
+
+    (async () => {
+      const cur = await window.sizeSettings.get();
+      initial = clamp(cur || 360);
+      setUi(initial);
+    })();
+
+    // Dragging only updates the number — never resize the pet window (avoids flash)
+    range.addEventListener('input', () => {
+      setUi(range.value, { fillNum: true });
+    });
+
+    num.addEventListener('input', () => {
+      const raw = String(num.value || '').trim();
+      if (raw === '' || !/^\d+$/.test(raw)) return;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return;
+      if (n >= MIN && n <= MAX) {
+        pending = Math.round(n);
+        range.value = String(pending);
+        label.textContent = String(pending);
+      } else {
+        label.textContent = String(Math.round(n));
+      }
+    });
+
+    num.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('apply').click();
+      }
+    });
+
+    num.addEventListener('blur', () => {
+      commitNum();
+    });
+
+    document.getElementById('cancel').onclick = () => {
+      window.sizeSettings.close();
+    };
+
+    document.getElementById('apply').onclick = async () => {
+      const n = commitNum();
+      await window.sizeSettings.apply(n);
+      window.sizeSettings.close();
+    };
+  </script>
+</body>
+</html>

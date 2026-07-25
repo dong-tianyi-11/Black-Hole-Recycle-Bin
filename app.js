@@ -9,10 +9,21 @@
   let theme = 'blackhole';
   let themeType = 'blackhole';
   let themeMeta = null;
-  let frameBusy = false;
   let feeding = false;
   let doNotDisturb = false;
   let clickThrough = true;
+  let miniMode = false;
+  let contextMenuOpen = false;
+  let crumbBurstTimer = null;
+  // Click-through state. Stuck ignore=true while cursor is still over #hit is the
+  // usual "dead until I click the app" bug — mouseenter won't re-fire. Recover via
+  // forwarded mousemove + focus wake.
+  let passthroughOn = null;
+  let lastPointer = { x: null, y: null };
+  let pointerDown = false;
+  let dragging = false;
+  let fileDragActive = false;
+  let fileDragWatch = null;
 
   function isPet() {
     return themeType === 'pet';
@@ -29,27 +40,99 @@
     showToast._t = setTimeout(() => toast.classList.remove('show'), ms);
   }
 
-  function spawnCrumbs(count) {
+  function spawnCrumbs(count, { blackhole = false } = {}) {
     if (!crumbs) return;
     crumbs.innerHTML = '';
-    const n = Math.min(8, Math.max(1, count));
+    const n = Math.min(blackhole ? 12 : 8, Math.max(3, count * (blackhole ? 2 : 1)));
     for (let i = 0; i < n; i++) {
       const el = document.createElement('div');
       el.className = 'crumb';
-      const x = (Math.random() - 0.5) * 70;
-      const y = -20 - Math.random() * 40;
+      const ang = Math.random() * Math.PI * 2;
+      const dist = blackhole ? 38 + Math.random() * 42 : 0;
+      const x = blackhole ? Math.cos(ang) * dist : (Math.random() - 0.5) * 70;
+      const y = blackhole ? Math.sin(ang) * dist : -20 - Math.random() * 40;
       el.style.setProperty('--sx', `${x}%`);
       el.style.setProperty('--sy', `${y}%`);
-      el.style.animationDelay = `${i * 0.06}s`;
+      el.style.animationDelay = `${i * (blackhole ? 0.04 : 0.06)}s`;
       crumbs.appendChild(el);
     }
-    setTimeout(() => {
+    clearTimeout(spawnCrumbs._t);
+    spawnCrumbs._t = setTimeout(() => {
       crumbs.innerHTML = '';
-    }, 900);
+    }, blackhole ? 1100 : 900);
+  }
+
+  function startBlackholeDragFx() {
+    if (!isBlackhole() || doNotDisturb) return;
+    renderer?.triggerFeed(0.35);
+    spawnCrumbs(4, { blackhole: true });
+    clearInterval(crumbBurstTimer);
+    crumbBurstTimer = setInterval(() => {
+      if (!document.body.classList.contains('drag-files')) {
+        clearInterval(crumbBurstTimer);
+        crumbBurstTimer = null;
+        return;
+      }
+      renderer?.triggerFeed(0.12);
+      spawnCrumbs(3, { blackhole: true });
+    }, 280);
+  }
+
+  function stopBlackholeDragFx() {
+    if (crumbBurstTimer) {
+      clearInterval(crumbBurstTimer);
+      crumbBurstTimer = null;
+    }
   }
 
   function bumpActivity() {
     window.blackHole?.noteActivity?.();
+  }
+
+  function pointOverHit(clientX, clientY) {
+    if (clientX == null || clientY == null) return false;
+    // Use window bounds (matches main-process cursor watch), not only #hit —
+    // after alt-tab, #hit :hover/leave is unreliable on transparent windows.
+    return (
+      clientX >= 0 &&
+      clientY >= 0 &&
+      clientX < window.innerWidth &&
+      clientY < window.innerHeight
+    );
+  }
+
+  function setPassthrough(ignore) {
+    if (!clickThrough || miniMode) {
+      if (passthroughOn !== false) {
+        passthroughOn = false;
+        window.blackHole.setIgnoreMouse(false);
+      }
+      return;
+    }
+    const next = !!ignore;
+    if (passthroughOn === next) return;
+    passthroughOn = next;
+    window.blackHole.setIgnoreMouse(next);
+  }
+
+  function syncPassthrough(clientX, clientY) {
+    if (clientX != null && clientY != null) {
+      lastPointer = { x: clientX, y: clientY };
+    }
+    // While interacting / accepting drops, always capture mouse
+    if (pointerDown || dragging || fileDragActive || feeding || contextMenuOpen || miniMode) {
+      setPassthrough(false);
+      return;
+    }
+    if (!clickThrough) {
+      setPassthrough(false);
+      return;
+    }
+    if (lastPointer.x == null) {
+      setPassthrough(true);
+      return;
+    }
+    setPassthrough(!pointOverHit(lastPointer.x, lastPointer.y));
   }
 
   function applyTheme(payload) {
@@ -69,8 +152,7 @@
     if (isPet()) pet?.setDoNotDisturb(doNotDisturb);
     renderer?.setLowPower?.(!!payload?.lowPowerIdle);
     renderer?.resize();
-    if (clickThrough) window.blackHole.setIgnoreMouse(true);
-    else window.blackHole.setIgnoreMouse(false);
+    syncPassthrough();
   }
 
   async function init() {
@@ -101,44 +183,87 @@
       renderer?.setLowPower?.(!!on);
     });
 
+    window.blackHole.onMiniModeChange?.((payload) => {
+      miniMode = !!payload?.enabled;
+      const edge = payload?.edge || 'right';
+      const flipAssets = !!themeMeta?.miniMode?.flipAssets;
+      document.body.classList.toggle('mini-mode', miniMode);
+      document.body.classList.toggle('mini-left', miniMode && edge === 'left');
+      document.body.classList.toggle('mini-flip-assets', miniMode && flipAssets);
+      if (isPet()) {
+        pet?.setMiniMode(miniMode);
+      }
+      syncPassthrough();
+    });
+
+    window.blackHole.onMiniPetState?.((state) => {
+      if (isPet() && miniMode) pet?.playMiniState(state);
+    });
+
+    window.blackHole.onMiniExited?.(() => {
+      miniMode = false;
+      document.body.classList.remove('mini-mode', 'mini-left', 'mini-flip-assets');
+      if (isPet()) pet?.setMiniMode(false);
+      syncPassthrough();
+    });
+
+    let deskFrameBusy = false;
+    let deskFramePending = null;
     window.blackHole.onDesktopFrame(async (frame) => {
-      if (!isBlackhole() || doNotDisturb || !frame?.data || frameBusy) return;
-      frameBusy = true;
+      if (!isBlackhole() || doNotDisturb || !frame?.data) return;
+      // Keep newest frame only — never drop the latest behind a busy decode
+      deskFramePending = frame;
+      if (deskFrameBusy) return;
+      deskFrameBusy = true;
       try {
-        const bytes =
-          frame.data instanceof Uint8Array
-            ? frame.data
-            : frame.data?.type === 'Buffer'
-              ? new Uint8Array(frame.data.data)
-              : new Uint8Array(frame.data);
-        await renderer.updateDesktopTexture(bytes, frame.padRatio, frame.mime || 'image/jpeg');
+        while (deskFramePending) {
+          const f = deskFramePending;
+          deskFramePending = null;
+          const bytes =
+            f.data instanceof Uint8Array
+              ? f.data
+              : f.data?.type === 'Buffer'
+                ? new Uint8Array(f.data.data)
+                : new Uint8Array(f.data);
+          await renderer.updateDesktopTexture(bytes, f.padRatio, f.mime || 'image/jpeg');
+        }
       } finally {
-        frameBusy = false;
+        deskFrameBusy = false;
       }
     });
 
-    if (clickThrough) window.blackHole.setIgnoreMouse(true);
+    window.blackHole.onClickThroughWake?.(() => {
+      // Main confirmed cursor is over our window (or we gained focus).
+      // Do NOT immediately re-sync from a stale lastPointer — that re-stuck ignore.
+      const r = hit.getBoundingClientRect();
+      lastPointer = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      setPassthrough(false);
+    });
+
+    syncPassthrough();
   }
 
-  let dragging = false;
   let dragMoved = false;
-  let pointerDown = false;
   let mainDragStarted = false;
   let lastScreen = null;
   let activePointerId = null;
+  let pointerWatch = null;
 
-  function hitUnderPoint(clientX, clientY) {
-    if (clientX == null || clientY == null) return hit.matches(':hover');
-    const el = document.elementFromPoint(clientX, clientY);
-    return !!(el && (el === hit || hit.contains(el)));
+  function armPointerWatch() {
+    if (pointerWatch) clearTimeout(pointerWatch);
+    pointerWatch = setTimeout(() => {
+      pointerWatch = null;
+      if (pointerDown || dragging) {
+        endPointerDrag(null, { cancel: true });
+      }
+    }, 12000);
   }
 
-  function syncClickThroughFromPoint(clientX, clientY) {
-    if (!clickThrough) return;
-    queueMicrotask(() => {
-      if (pointerDown || dragging) return;
-      window.blackHole.setIgnoreMouse(!hitUnderPoint(clientX, clientY));
-    });
+  function clearPointerWatch() {
+    if (pointerWatch) {
+      clearTimeout(pointerWatch);
+      pointerWatch = null;
+    }
   }
 
   function endPointerDrag(e, { cancel = false } = {}) {
@@ -149,7 +274,7 @@
     const clientX = e?.clientX;
     const clientY = e?.clientY;
 
-    // Clear state before releasePointerCapture to avoid re-entry via lostpointercapture
+    clearPointerWatch();
     activePointerId = null;
     pointerDown = false;
     dragging = false;
@@ -164,6 +289,15 @@
     }
 
     document.body.classList.remove('window-dragging');
+    if (miniMode) {
+      // Click OR failed drag attempt both undock — previously moving >3px
+      // blocked exit and also blocked window drag → "stuck after update"
+      if (!cancel) {
+        window.blackHole.exitMiniMode?.();
+      }
+      syncPassthrough(clientX, clientY);
+      return;
+    }
     if (startedMain) {
       window.blackHole.dragEnd();
       if (moved) pet?.onWindowDragEnd();
@@ -171,27 +305,36 @@
       pet?.poke();
     }
 
-    // Prefer elementFromPoint — :hover is often stale right after drag on transparent windows
-    syncClickThroughFromPoint(clientX, clientY);
+    syncPassthrough(clientX, clientY);
   }
 
-  // Click-through: only #hit captures mouse
+  // Forwarded even when ignore=true — primary recovery from stuck passthrough
+  window.addEventListener(
+    'mousemove',
+    (e) => {
+      syncPassthrough(e.clientX, e.clientY);
+    },
+    { passive: true }
+  );
+
   hit.addEventListener('mouseenter', () => {
-    if (clickThrough && !dragging && !pointerDown) window.blackHole.setIgnoreMouse(false);
+    setPassthrough(false);
+    if (miniMode && !dragging) window.blackHole.miniPeekIn?.();
   });
-  hit.addEventListener('mouseleave', () => {
-    // Keep capturing while pointer is down / dragging (IME popups can fire leave)
-    if (dragging || pointerDown) return;
-    if (clickThrough && !feeding) window.blackHole.setIgnoreMouse(true);
+  hit.addEventListener('mouseleave', (e) => {
+    if (dragging || pointerDown || contextMenuOpen || fileDragActive) return;
+    if (miniMode) window.blackHole.miniPeekOut?.();
+    // Alt-tab / focus change fabricates mouseleave while cursor is still on us
+    if (!document.hasFocus()) return;
+    syncPassthrough(e.clientX, e.clientY);
   });
 
-  // Wheel zoom only on the hit target, never while dragging
   hit.addEventListener(
     'wheel',
     async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (dragging || pointerDown) return;
+      if (dragging || pointerDown || miniMode) return;
       bumpActivity();
       pet?.notePointer();
       const config = await window.blackHole.getConfig();
@@ -201,23 +344,29 @@
       if (next !== current) {
         await window.blackHole.setSize(next);
         renderer?.resize();
-        if (clickThrough) window.blackHole.setIgnoreMouse(false);
+        setPassthrough(false);
       }
     },
     { passive: false }
   );
 
-  window.addEventListener('contextmenu', (e) => {
+  window.addEventListener('contextmenu', async (e) => {
     e.preventDefault();
     if (dragging || pointerDown) {
       endPointerDrag(e, { cancel: true });
     }
     bumpActivity();
     pet?.notePointer();
-    window.blackHole?.showContextMenu();
+    contextMenuOpen = true;
+    setPassthrough(false);
+    try {
+      await window.blackHole.showContextMenu();
+    } catch (_) {}
+    contextMenuOpen = false;
+    setPassthrough(false);
+    setTimeout(() => syncPassthrough(e.clientX, e.clientY), 80);
   });
 
-  // Pointer Events + setPointerCapture: survives IME / floating candidate windows
   hit.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     pointerDown = true;
@@ -228,8 +377,8 @@
     lastScreen = { x: e.screenX, y: e.screenY };
     bumpActivity();
     pet?.notePointer();
-    window.blackHole.setIgnoreMouse(false);
-    // Defer dragStart until real move — avoids size flicker on simple clicks
+    setPassthrough(false);
+    armPointerWatch();
     try {
       hit.setPointerCapture(e.pointerId);
     } catch (_) {}
@@ -239,12 +388,29 @@
   hit.addEventListener('pointermove', (e) => {
     if (!dragging || !lastScreen) return;
     if (activePointerId != null && e.pointerId !== activePointerId) return;
+    armPointerWatch();
     const dx = e.screenX - lastScreen.x;
     const dy = e.screenY - lastScreen.y;
     if (!dx && !dy) return;
     const dist = Math.hypot(dx, dy);
-    // Start drag after a small threshold; once moving, apply every delta (no sticky lag)
     if (!dragMoved && dist <= 3) return;
+
+    // Mini: drag out undocks immediately, then continues as a normal window drag
+    if (miniMode) {
+      dragMoved = true;
+      window.blackHole.exitMiniModeImmediate?.();
+      miniMode = false;
+      document.body.classList.remove('mini-mode', 'mini-left', 'mini-flip-assets');
+      pet?.setMiniMode?.(false);
+      mainDragStarted = true;
+      document.body.classList.add('window-dragging');
+      window.blackHole.dragStart();
+      pet?.onWindowDragStart();
+      window.blackHole.dragMove();
+      lastScreen = { x: e.screenX, y: e.screenY };
+      return;
+    }
+
     if (!dragMoved) {
       dragMoved = true;
       mainDragStarted = true;
@@ -252,7 +418,8 @@
       window.blackHole.dragStart();
       pet?.onWindowDragStart();
     }
-    window.blackHole.dragMove(dx, dy);
+    // Main process tracks screen.getCursorScreenPoint() — don't send CSS/DPI deltas
+    window.blackHole.dragMove();
     lastScreen = { x: e.screenX, y: e.screenY };
   });
 
@@ -267,7 +434,6 @@
   });
 
   hit.addEventListener('lostpointercapture', () => {
-    // IME or OS stole capture — finish drag cleanly instead of stuck state
     if (pointerDown || dragging) {
       endPointerDrag(null, { cancel: true });
     }
@@ -277,72 +443,105 @@
     e.preventDefault();
   });
 
-  let fileDragDepth = 0;
-
   function isFileDrag(e) {
     return Array.from(e.dataTransfer?.types || []).includes('Files');
+  }
+
+  function clearFileDragHover() {
+    const was = fileDragActive;
+    fileDragActive = false;
+    if (fileDragWatch) {
+      clearTimeout(fileDragWatch);
+      fileDragWatch = null;
+    }
+    hit.classList.remove('drag-over');
+    document.body.classList.remove('drag-files');
+    stopBlackholeDragFx();
+    if (!feeding) pet?.endFeedExpect();
+    if (was) syncPassthrough();
+  }
+
+  function armFileDragWatch() {
+    if (fileDragWatch) clearTimeout(fileDragWatch);
+    fileDragWatch = setTimeout(() => {
+      fileDragWatch = null;
+      if (fileDragActive) clearFileDragHover();
+    }, 200);
+  }
+
+  function setFileDragActive(e) {
+    const first = !fileDragActive;
+    fileDragActive = true;
+    if (e && e.clientX != null) {
+      lastPointer = { x: e.clientX, y: e.clientY };
+    }
+    hit.classList.add('drag-over');
+    document.body.classList.add('drag-files');
+    setPassthrough(false);
+    bumpActivity();
+    if (doNotDisturb) return;
+    if (first) {
+      if (isBlackhole()) startBlackholeDragFx();
+      if (isPet() && !feeding) pet?.beginFeedExpect();
+    }
   }
 
   function onFileDragEnter(e) {
     if (!isFileDrag(e)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (clickThrough) window.blackHole.setIgnoreMouse(false);
-    const was = fileDragDepth;
-    fileDragDepth += 1;
-    hit.classList.add('drag-over');
-    document.body.classList.add('drag-files');
-    bumpActivity();
-    if (doNotDisturb) return;
-    if (isBlackhole()) renderer?.triggerFeed(0.08);
-    if (was === 0 && isPet() && !feeding) pet?.beginFeedExpect();
+    e.stopPropagation();
+    try {
+      e.dataTransfer.dropEffect = 'move';
+    } catch (_) {}
+    setFileDragActive(e);
+    armFileDragWatch();
   }
 
   function onFileDragOver(e) {
     if (!isFileDrag(e)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (doNotDisturb) return;
-    if (isBlackhole()) renderer?.triggerFeed(0.035);
-  }
-
-  function clearFileDragHover() {
-    fileDragDepth = 0;
-    hit.classList.remove('drag-over');
-    document.body.classList.remove('drag-files');
-    if (!feeding) pet?.endFeedExpect();
-    if (clickThrough) window.blackHole.setIgnoreMouse(true);
+    e.stopPropagation();
+    try {
+      e.dataTransfer.dropEffect = 'move';
+    } catch (_) {}
+    setFileDragActive(e);
+    armFileDragWatch();
+    if (!doNotDisturb && isBlackhole()) renderer?.triggerFeed(0.06);
   }
 
   function onFileDragLeave(e) {
     if (!isFileDrag(e)) return;
-    fileDragDepth = Math.max(0, fileDragDepth - 1);
-    if (fileDragDepth === 0) clearFileDragHover();
+    armFileDragWatch();
   }
 
   window.addEventListener('dragenter', onFileDragEnter);
   window.addEventListener('dragover', onFileDragOver);
   window.addEventListener('dragleave', onFileDragLeave);
   window.addEventListener('dragend', clearFileDragHover);
+  window.addEventListener('blur', () => {
+    if (fileDragActive) clearFileDragHover();
+    // Don't toggle passthrough here — blur mouseleave is unreliable; main cursor watch owns it
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && fileDragActive) clearFileDragHover();
+  });
 
   window.addEventListener('drop', async (e) => {
     e.preventDefault();
-    fileDragDepth = 0;
-    hit.classList.remove('drag-over');
-    document.body.classList.remove('drag-files');
+    e.stopPropagation();
+    const wasFile = isFileDrag(e);
+    if (e.clientX != null) lastPointer = { x: e.clientX, y: e.clientY };
+    clearFileDragHover();
     bumpActivity();
-    if (clickThrough) window.blackHole.setIgnoreMouse(true);
 
-    if (!isFileDrag(e)) {
-      if (!feeding) pet?.endFeedExpect();
-      return;
-    }
+    if (!wasFile) return;
 
     if (doNotDisturb) {
-      pet?.endFeedExpect();
       showToast('勿扰中，先唤醒再投喂');
       return;
     }
+
+    setPassthrough(false);
 
     const files = Array.from(e.dataTransfer.files || []);
     const paths = files
@@ -350,21 +549,27 @@
       .filter(Boolean);
 
     if (!paths.length) {
-      pet?.endFeedExpect();
       showToast('无法读取文件路径');
+      syncPassthrough();
+      return;
+    }
+
+    if (feeding) {
+      showToast('还在消化上一次…');
       return;
     }
 
     feeding = true;
     document.body.classList.add('feeding');
-    spawnCrumbs(paths.length);
+    setPassthrough(false);
+    spawnCrumbs(paths.length, { blackhole: isBlackhole() });
 
-    if (isBlackhole()) renderer?.triggerFeed(1.2);
+    if (isBlackhole()) renderer?.triggerFeed(1.6);
     if (isPet()) pet?.startEating();
 
     const eatLabel = themeMeta?.eatLabel || (theme === 'calico' ? '小猫' : '宠物');
     const eatingLabel = isPet() ? `${eatLabel}吃掉了` : '正在吸入';
-    showToast(`${eatingLabel} ${paths.length} 项…`);
+    showToast(`${eatingLabel} ${paths.length} 项…（大文件/文件夹可能需较久）`, 8000);
 
     try {
       const result = await window.blackHole.recyclePaths(paths);
@@ -377,7 +582,10 @@
         } else {
           showToast(ok === 1 ? '已送入回收站' : `已送入回收站（${ok}）`);
         }
-        if (isBlackhole()) renderer?.triggerFeed(0.8);
+        if (isBlackhole()) {
+          renderer?.triggerFeed(1.0);
+          spawnCrumbs(ok, { blackhole: true });
+        }
         if (isPet()) pet?.finishEating(true);
       } else {
         showToast(`成功 ${ok}，失败 ${fail}`);
@@ -391,6 +599,7 @@
       setTimeout(() => {
         document.body.classList.remove('feeding');
         feeding = false;
+        syncPassthrough();
       }, 400);
     }
   });

@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('blackHole', {
   getConfig: () => ipcRenderer.invoke('get-config'),
   listThemes: () => ipcRenderer.invoke('list-themes'),
   openThemesFolder: () => ipcRenderer.invoke('open-themes-folder'),
+  createThemeFromImage: () => ipcRenderer.invoke('create-theme-from-image'),
   importThemeZip: () => ipcRenderer.invoke('import-theme-zip'),
   setSize: (size) => ipcRenderer.invoke('set-size', size),
   setTheme: (theme) => ipcRenderer.invoke('set-theme', theme),
@@ -37,8 +38,33 @@ contextBridge.exposeInMainWorld('blackHole', {
   recyclePaths: (paths) => ipcRenderer.invoke('recycle-paths', paths),
   showContextMenu: () => ipcRenderer.invoke('show-context-menu'),
   dragStart: () => ipcRenderer.send('drag-start'),
-  dragMove: (dx, dy) => ipcRenderer.send('drag-move', { dx, dy }),
+  dragMove: () => ipcRenderer.send('drag-move'),
   dragEnd: () => ipcRenderer.send('drag-end'),
+  exitMiniMode: () => ipcRenderer.send('exit-mini-mode'),
+  exitMiniModeImmediate: () => ipcRenderer.send('exit-mini-mode-immediate'),
+  miniPeekIn: () => ipcRenderer.send('mini-peek-in'),
+  miniPeekOut: () => ipcRenderer.send('mini-peek-out'),
+  toggleMiniMode: () => ipcRenderer.send('toggle-mini-mode'),
+  onMiniModeChange: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on('mini-mode-change', handler);
+    return () => ipcRenderer.removeListener('mini-mode-change', handler);
+  },
+  onMiniPetState: (cb) => {
+    const handler = (_e, state) => cb(state);
+    ipcRenderer.on('mini-pet-state', handler);
+    return () => ipcRenderer.removeListener('mini-pet-state', handler);
+  },
+  onMiniExited: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('mini-exited', handler);
+    return () => ipcRenderer.removeListener('mini-exited', handler);
+  },
+  onClickThroughWake: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('click-through-wake', handler);
+    return () => ipcRenderer.removeListener('click-through-wake', handler);
+  },
   getPathForFile: (file) => {
     try {
       return webUtils.getPathForFile(file);
