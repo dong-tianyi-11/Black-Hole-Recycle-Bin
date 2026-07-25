@@ -1,6 +1,6 @@
 {
   "name": "black-hole-recycle-bin",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "Interstellar-style desktop black hole pet that sends dropped files to the Recycle Bin",
   "main": "main.js",
   "author": "",
@@ -25,8 +25,7 @@
     "publish:gitee": "node scripts/publish-gitee-latest.js",
     "publish:github": "node scripts/publish-github-latest.js",
     "publish:all": "node scripts/publish-gitee-latest.js && node scripts/publish-github-latest.js",
-    "build:apng": "node scripts/build-listening-apng.js",
-    "build:danchen-svg": "node scripts/build-danchen-svgs.js"
+    "build:apng": "node scripts/build-listening-apng.js"
   },
   "dependencies": {
     "electron-updater": "^6.8.3",
@@ -54,9 +53,11 @@
       "styles.css",
       "app.js",
       "blackhole.js",
+      "saturn.js",
       "pet.js",
       "capture.js",
       "recycle.js",
+      "recycle-bin-watch.js",
       "theme-loader.js",
       "theme-importer.js",
       "theme-from-image.js",
@@ -79,8 +80,11 @@
       "!themes/danchen/assets/*.apng",
       "!themes/danchen/assets/*.svg",
       "!themes/calico/assets/calico-listening.apng",
-      "!themes/calico/assets/calico-working-*.apng",
-      "!themes/calico/assets/calico-mini-*.apng",
+      "!themes/calico/assets/calico-working-building.apng",
+      "!themes/calico/assets/calico-working-carrying.apng",
+      "!themes/calico/assets/calico-working-conducting.apng",
+      "!themes/calico/assets/calico-working-juggling.apng",
+      "!themes/calico/assets/calico-working-sweeping.apng",
       "!themes/calico/assets/calico-dozing.apng",
       "!themes/calico/assets/calico-collapsing.apng",
       "!themes/calico/assets/calico-yawning.apng",

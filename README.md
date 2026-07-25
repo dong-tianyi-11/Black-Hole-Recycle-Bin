@@ -14,7 +14,7 @@ Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把�
 
 | 平台 | GitHub（推荐） | Gitee |
 |------|----------------|-------|
-| Windows x64（当前 **v1.0.13**） | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
+| Windows x64（当前 **v1.1.0**） | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
 | macOS Apple Silicon (M 系列) | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-arm64.dmg) |
 | macOS Intel | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-x64.dmg) |
 
@@ -57,7 +57,9 @@ https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/downloa
 | 左键单击 | 小猫戳一戳 / 唤醒（迷你模式下为退出迷你） |
 | 滚轮 | 放大 / 缩小（以中心锚定，尽量不跳位） |
 | 拖入文件 | 吸入 / 吃掉 → 回收站（Win / Mac） |
-| 托盘 | 皮肤、勿扰、多屏、开机启动、尺寸、缩小到原尺寸、检查更新等 |
+| 托盘 | 皮肤、勿扰、多屏、开机启动、录屏可见、尺寸、缩小到原尺寸、检查更新等 |
+
+> **录屏**：小猫 / 炼丹 / 土星默认可被 EV、OBS 等录到。黑洞主题为刷新桌面扭曲会默认排除录屏；录黑洞时请托盘勾选 **录屏可见**。
 
 ## 自定义主题
 
@@ -75,6 +77,12 @@ API Key 使用系统加密（Windows DPAPI / macOS Keychain）保存在 `ai-secr
 - macOS：`~/Library/Application Support/black-hole-recycle-bin/themes/`
 
 ## 更新记录
+
+### v1.1.0
+- 录屏可见：小猫 / 炼丹 / 土星默认可被 EV、OBS 等录到
+- 托盘新增「录屏可见」；黑洞主题录屏时勾选即可
+- 修复桌宠状态被覆盖：打字 / 听歌 / 常态优先级正确恢复
+- 修复三花小猫迷你素材在安装包中缺失
 
 ### v1.0.13
 - 修复桌宠状态被覆盖：打字 / 听歌 / 常态优先级正确恢复
@@ -121,8 +129,8 @@ npm run publish:github
 
 ### 测试自动更新
 
-1. 先安装较旧版本（如 v1.0.12）
-2. 确认 Gitee `latest` 发行版已是新版本（如 v1.0.13）的安装包与 `latest.yml`
+1. 先安装较旧版本（如 v1.0.13）
+2. 确认 Gitee `latest` 发行版已是新版本（如 v1.1.0）的安装包与 `latest.yml`
 3. 打开已安装应用 → 托盘 → **检查更新** → 下载 → 重启
 
 | 平台 | 行为 |
