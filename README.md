@@ -6,7 +6,7 @@ Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把�
 - Gitee（发行版 / 自动更新）：[gitee.com/dong-tianyi-11/black-hole-recycle-bin](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin)
 - GitHub：[github.com/dong-tianyi-11/Black-Hole-Recycle-Bin](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin)
 
-内置皮肤：**黑洞**、**三花小猫**、**炼丹少年**。支持自定义主题与 **Gitee 自动更新**。
+内置皮肤：**黑洞**、**土星**、**三花小猫**、**炼丹少年**。支持自定义主题与 **Gitee 自动更新**（GitHub 同步镜像安装包）。
 
 ## 永久下载直链
 
@@ -14,7 +14,7 @@ Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把�
 
 | 平台 | GitHub（推荐） | Gitee |
 |------|----------------|-------|
-| Windows x64 | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
+| Windows x64（当前 **v1.0.13**） | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
 | macOS Apple Silicon (M 系列) | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-arm64.dmg) |
 | macOS Intel | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-x64.dmg) |
 
@@ -26,6 +26,8 @@ https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/downloa
 https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg
 ```
 
+已安装用户也可：托盘 → **检查更新**（读取 Gitee `latest` 发行版）。
+
 ## 系统要求
 
 | 平台 | 最低版本 | 说明 |
@@ -35,52 +37,27 @@ https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/downloa
 
 配置与 API Key 存放在用户目录（`%APPDATA%\black-hole-recycle-bin` / `~/Library/Application Support/black-hole-recycle-bin`），**更新安装不会清除**。
 
-## 开发运行
+## 内置皮肤
 
-```bash
-npm install
-npm start
-```
+| 皮肤 | 类型 | 说明 |
+|------|------|------|
+| 黑洞 | 画布 | 引力透镜 / 吸积盘粒子；拖入文件螺旋吸入回收站 |
+| 土星 | 画布 | 自转云带 + 光环碎石；碎石数量随回收站增减 |
+| 三花小猫 | 桌宠 | 戳一戳、吃文件、打字敲键盘、听歌、贴边迷你 |
+| 炼丹少年 | 桌宠 | 炼丹打字、听歌、吃文件、贴边迷你 |
 
-## 打包与发布更新
-
-```bash
-# 1) 改 package.json 的 version
-# 2) 打 Windows 包
-npm run build:win
-
-# 3) 上传到 Gitee 发行版标签 latest（覆盖旧附件）
-npm run publish:gitee
-```
-
-产物在 `dist/`：`BlackHoleRecycleBin-Windows-x64.exe`、`latest.yml`、`*.blockmap`（macOS 为 `BlackHoleRecycleBin-macOS-*.dmg`）。
-
-也可在 GitHub Actions 手动运行 **Build** 工作流，自动打 Win/Mac 包并刷新 `latest` 发行版（永久直链会随之更新）。
-
-### 测试自动更新
-
-1. 先安装较旧版本（如 v1.0.0）
-2. 确认 Gitee `latest` 发行版已是新版本（如 v1.0.1）的安装包与 `latest.yml`
-3. 打开已安装应用 → 托盘 → **检查更新** → 下载 → 重启
-
-| 平台 | 行为 |
-|------|------|
-| Windows 安装版 | 托盘「检查更新」→ 读 `latest.yml` → 下载 → 重启安装 |
-| macOS 安装版 | 检查到新版本后打开 Gitee Releases 下载页 |
-| 开发模式 `npm start` | 提示使用安装版检查更新 |
-
-> 自动更新读取的是标签名为 **`latest`** 的发行版附件。
+桌宠在键盘输入时显示「工作 / 炼丹」，系统在播音乐时显示「听歌」；二者优先级为 **打字 > 听歌 > 常态**，勿扰 / 迷你进出后会自动恢复正确表情。
 
 ## 操作
 
 | 操作 | 效果 |
 |------|------|
 | 左键拖拽 | 移动；拖到左右屏幕边缘松手进入迷你模式 |
-| 迷你模式 | 半身藏进边框；悬停探头；单击退出 |
+| 迷你模式 | 半身藏进边框；悬停探头；单击或托盘退出；可拖出边框退出 |
 | 左键单击 | 小猫戳一戳 / 唤醒（迷你模式下为退出迷你） |
-| 滚轮 | 放大 / 缩小 |
+| 滚轮 | 放大 / 缩小（以中心锚定，尽量不跳位） |
 | 拖入文件 | 吸入 / 吃掉 → 回收站（Win / Mac） |
-| 托盘 | 皮肤、勿扰、多屏、开机启动、检查更新等 |
+| 托盘 | 皮肤、勿扰、多屏、开机启动、尺寸、缩小到原尺寸、检查更新等 |
 
 ## 自定义主题
 
@@ -96,3 +73,62 @@ API Key 使用系统加密（Windows DPAPI / macOS Keychain）保存在 `ai-secr
 
 - Windows：`%APPDATA%\black-hole-recycle-bin\themes\`
 - macOS：`~/Library/Application Support/black-hole-recycle-bin/themes/`
+
+## 更新记录
+
+### v1.0.13
+- 修复桌宠状态被覆盖：打字 / 听歌 / 常态优先级正确恢复
+- 修复三花小猫迷你素材在安装包中缺失
+- 打包保留迷你与打字动画；主题切换、勿扰、退出迷你后重同步表情
+
+### v1.0.12
+- 土星主题：行星自转（云带 / 风暴）与光环轻微漂移
+
+### v1.0.11
+- 清理临时素材；优化拖拽与靠边迷你进出
+
+### v1.0.10
+- 土星主题：回收站数量驱动光环碎石；喂食长大
+
+### v1.0.9
+- 炼丹少年主题；小猫吃文件 SVG；打字 / 听歌状态
+
+## 开发运行
+
+```bash
+npm install
+npm start
+```
+
+## 打包与发布更新
+
+```bash
+# 1) 改 package.json 的 version
+# 2) 打 Windows 包（若 dist/win-unpacked 被占用，可打到 dist-release）
+npm run build:win
+# 或：
+npx electron-builder --win nsis:x64 --config.directories.output=dist-release
+
+# 3) 上传到 Gitee + GitHub 的 latest 发行版（覆盖旧附件）
+npm run publish:gitee
+npm run publish:github
+# 或：npm run publish:all
+```
+
+产物在 `dist/`（或 `dist-release/`）：`BlackHoleRecycleBin-Windows-x64.exe`、`latest.yml`、`*.blockmap`（macOS 为 `BlackHoleRecycleBin-macOS-*.dmg`）。
+
+也可在 GitHub Actions 手动运行 **Build** 工作流，自动打 Win/Mac 包并刷新 `latest` 发行版（永久直链会随之更新）。
+
+### 测试自动更新
+
+1. 先安装较旧版本（如 v1.0.12）
+2. 确认 Gitee `latest` 发行版已是新版本（如 v1.0.13）的安装包与 `latest.yml`
+3. 打开已安装应用 → 托盘 → **检查更新** → 下载 → 重启
+
+| 平台 | 行为 |
+|------|------|
+| Windows 安装版 | 托盘「检查更新」→ 读 `latest.yml` → 下载 → 重启安装 |
+| macOS 安装版 | 检查到新版本后打开 Gitee Releases 下载页 |
+| 开发模式 `npm start` | 提示使用安装版检查更新 |
+
+> 自动更新读取的是标签名为 **`latest`** 的发行版附件。
