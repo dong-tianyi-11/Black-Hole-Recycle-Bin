@@ -23,6 +23,8 @@
     "build:mac": "electron-builder --mac",
     "build:dir": "electron-builder --dir",
     "publish:gitee": "node scripts/publish-gitee-latest.js",
+    "publish:github": "node scripts/publish-github-latest.js",
+    "publish:all": "node scripts/publish-gitee-latest.js && node scripts/publish-github-latest.js",
     "build:apng": "node scripts/build-listening-apng.js",
     "build:danchen-svg": "node scripts/build-danchen-svgs.js"
   },
@@ -74,8 +76,17 @@
       "themes/**/*",
       "!themes/**/*-src.png",
       "!themes/**/src/**",
+      "!themes/danchen/assets/*.apng",
+      "!themes/danchen/assets/*.svg",
+      "!themes/calico/assets/calico-listening.apng",
+      "!themes/calico/assets/calico-working-*.apng",
+      "!themes/calico/assets/calico-mini-*.apng",
+      "!themes/calico/assets/calico-dozing.apng",
+      "!themes/calico/assets/calico-collapsing.apng",
+      "!themes/calico/assets/calico-yawning.apng",
       "!**/ChatGPT*"
     ],
+    "compression": "maximum",
     "asar": true,
     "asarUnpack": [
       "**/node_modules/koffi/**"
