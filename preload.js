@@ -65,6 +65,17 @@ contextBridge.exposeInMainWorld('blackHole', {
     ipcRenderer.on('click-through-wake', handler);
     return () => ipcRenderer.removeListener('click-through-wake', handler);
   },
+  onTypingActivity: (cb) => {
+    const handler = (_e, on) => cb(!!on);
+    ipcRenderer.on('typing-activity', handler);
+    return () => ipcRenderer.removeListener('typing-activity', handler);
+  },
+  getMediaActivity: () => ipcRenderer.invoke('get-media-activity'),
+  onMediaActivity: (cb) => {
+    const handler = (_e, on) => cb(!!on);
+    ipcRenderer.on('media-activity', handler);
+    return () => ipcRenderer.removeListener('media-activity', handler);
+  },
   getPathForFile: (file) => {
     try {
       return webUtils.getPathForFile(file);

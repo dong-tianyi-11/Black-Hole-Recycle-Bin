@@ -9,27 +9,28 @@
   const SLEEP_KEYS = ['sleeping', 'dozing', 'collapsing', 'yawning', 'waking'];
   const MINI_KEYS = ['miniIdle', 'miniEnter', 'miniPeek', 'miniSleep'];
 
+  // Note: `working` (typing / 炼丹) is NOT in the random cycle — only while user is typing.
   const CYCLE_CANDIDATES = [
-    { state: 'idle', hold: 9000 },
-    { state: 'idleAnim', hold: 5200 },
-    { state: 'idle', hold: 7000 },
-    { state: 'thinking', hold: 4500 },
     { state: 'idle', hold: 8000 },
-    { state: 'working', hold: 4500 },
+    { state: 'idleAnim', hold: 6000 },
+    { state: 'idle', hold: 7000 },
+    { state: 'idleAnim', hold: 5500 },
     { state: 'idle', hold: 6000 },
+    { state: 'attention', hold: 4200 },
+    { state: 'idle', hold: 9000 },
+    { state: 'thinking', hold: 4500 },
+    { state: 'idle', hold: 7000 },
     { state: 'juggling', hold: 5200 },
     { state: 'idle', hold: 8000 },
-    { state: 'attention', hold: 5000 },
-    { state: 'idle', hold: 10000 },
+    { state: 'notification', hold: 4200 },
+    { state: 'idle', hold: 9000 },
     { state: 'sweeping', hold: 5500 },
     { state: 'idle', hold: 7000 },
     { state: 'carrying', hold: 4500 },
-    { state: 'idle', hold: 9000 },
-    { state: 'building', hold: 5400 },
     { state: 'idle', hold: 8000 },
-    { state: 'conducting', hold: 6000 },
+    { state: 'building', hold: 5400 },
     { state: 'idle', hold: 7000 },
-    { state: 'notification', hold: 5200 },
+    { state: 'conducting', hold: 6000 },
   ];
 
   class PetController {
@@ -47,6 +48,8 @@
       this._chewTimer = null;
       this._chewIdx = 0;
       this._miniMode = false;
+      this._typing = false;
+      this._listening = false;
       this.assetBase = '';
       this.assetMap = {};
       this.timings = {};
@@ -76,6 +79,9 @@
       if (key === 'waking') return this.assetMap.waking || this.assetMap.idle || null;
       if (key === 'reactDrag') return this.assetMap.reactDrag || this.assetMap.reactPoke || this.assetMap.idle || null;
       if (key === 'reactPoke') return this.assetMap.reactPoke || this.assetMap.attention || this.assetMap.idle || null;
+      if (key === 'listening') {
+        return this.assetMap.listening || this.assetMap.attention || this.assetMap.idle || null;
+      }
       if (key === 'error') return this.assetMap.error || this.assetMap.yawning || this.assetMap.idle || null;
       if (key === 'miniIdle' || key === 'miniEnter' || key === 'miniPeek' || key === 'miniSleep') {
         return (
@@ -92,7 +98,22 @@
     }
 
     _preload() {
-      ['eatOpen', 'eatChew', 'eatChew2', 'eatChew3', 'idle'].forEach((k) => {
+      [
+        'idle',
+        'idleAnim',
+        'attention',
+        'working',
+        'eatOpen',
+        'eatChew',
+        'eatChew2',
+        'eatChew3',
+        'reactPoke',
+        'reactDrag',
+        'miniIdle',
+        'miniEnter',
+        'miniPeek',
+        'listening',
+      ].forEach((k) => {
         const file = this._resolveFile(k);
         if (!file || !this.assetBase) return;
         const im = new Image();
@@ -129,13 +150,27 @@
       }
       if (on) {
         this.locked = false;
+        this._busyUntil = 0;
         this._lastPointer = Date.now();
-        this.play('idle');
+        // Keep typing/listening flags — monitors own them; just restore the right face
+        if (this._dnd) {
+          this.play('sleeping', { force: true });
+        } else if (this._typing) {
+          this.play('working', { force: true });
+        } else if (this._listening && this._resolveFile('listening')) {
+          this.play('listening', { force: true });
+        } else {
+          this.play('idle', { force: true });
+        }
         this.scheduleCycle();
         this.scheduleSleepWatch();
-      } else if (this.img) {
-        this.img.removeAttribute('src');
-        this.img.removeAttribute('data-asset');
+      } else {
+        this._typing = false;
+        this._listening = false;
+        if (this.img) {
+          this.img.removeAttribute('src');
+          this.img.removeAttribute('data-asset');
+        }
       }
     }
 
@@ -152,8 +187,10 @@
       const file = this._resolveFile(key);
       const next = this.url(key);
       if (!next) return;
-      const bust = /\.apng$/i.test(file) ? `?t=${Date.now()}` : '';
-      if (this.img.dataset.asset !== file || bust) {
+      // Bust APNG cache only when switching assets (avoid restarting typing loop)
+      const sameAsset = this.img.dataset.asset === file;
+      if (!sameAsset || force) {
+        const bust = /\.(apng|png)$/i.test(file) ? `?t=${Date.now()}` : '';
         this.img.dataset.asset = file;
         this.img.src = next + bust;
       }
@@ -181,12 +218,18 @@
         this.clearTimers();
         this.locked = false;
         this._feeding = false;
+        this._typing = false;
+        this._listening = false;
         // Visual state applied via playMiniState from main process
       } else {
         this.locked = false;
         this.clearTimers();
         if (this._dnd) {
           this.play('sleeping', { force: true });
+        } else if (this._listening && this._resolveFile('listening')) {
+          this.play('listening', { force: true });
+          this.scheduleCycle();
+          this.scheduleSleepWatch();
         } else {
           this.play('idle', { force: true });
           this.scheduleCycle();
@@ -249,6 +292,91 @@
       this._lastPointer = Date.now();
     }
 
+    /**
+     * Keyboard typing → show working (敲键盘); stop typing → listening or idle.
+     * Does not interrupt eating / mini / DnD / drag reactions.
+     */
+    setTyping(on) {
+      const next = !!on;
+      if (this._typing === next) {
+        if (next) this.notePointer();
+        return;
+      }
+      this._typing = next;
+      if (!this.enabled || this._dnd || this._miniMode || this._feeding) return;
+      if (this._windowDragging) return;
+      if (EAT_KEYS.includes(this.state) || this.state === 'eatOpen') return;
+
+      if (next) {
+        this.notePointer();
+        // Wake from sleep on real typing
+        if (SLEEP_KEYS.includes(this.state)) {
+          this.clearTimers();
+          this.locked = false;
+        }
+        if (this.locked && this.state !== 'working') return;
+        this.clearTimers();
+        this.locked = false;
+        this._busyUntil = 0;
+        this.play('working', { force: true });
+        return;
+      }
+
+      // Stopped typing → music listening takes over if active
+      if (this.state === 'working') {
+        this.locked = false;
+        this._busyUntil = 0;
+        if (this._listening && this._resolveFile('listening')) {
+          this.play('listening', { force: true });
+        } else {
+          this.play('idle', { force: true });
+          this.scheduleCycle();
+        }
+        this.scheduleSleepWatch();
+      }
+    }
+
+    /**
+     * System music playing → listening pose; stop → idle (unless typing).
+     */
+    setListening(on) {
+      const next = !!on;
+      const changed = this._listening !== next;
+      this._listening = next;
+      if (!this.enabled || this._dnd || this._miniMode || this._feeding) return;
+      if (this._windowDragging) return;
+      // Only yield to 炼丹 while actively on working — sticky _typing must not block music
+      if (this._typing && this.state === 'working') return;
+      if (EAT_KEYS.includes(this.state) || this.state === 'eatOpen') return;
+      if (!this._resolveFile('listening')) return;
+
+      if (next) {
+        // Already showing it and flag unchanged — nothing to do
+        if (!changed && this.state === 'listening') return;
+        this.notePointer();
+        if (SLEEP_KEYS.includes(this.state)) {
+          this.clearTimers();
+          this.locked = false;
+        }
+        // Break out of short reaction locks so music can show
+        this.clearTimers();
+        this.locked = false;
+        this._busyUntil = 0;
+        this.play('listening', { force: true });
+        this.scheduleCycle();
+        this.scheduleSleepWatch();
+        return;
+      }
+
+      if (changed && this.state === 'listening') {
+        this.locked = false;
+        this._busyUntil = 0;
+        this.play('idle', { force: true });
+        this.scheduleCycle();
+        this.scheduleSleepWatch();
+      }
+    }
+
     scheduleCycle() {
       if (!this.enabled) return;
       const step = () => {
@@ -257,11 +385,27 @@
           this.later(step, 2000);
           return;
         }
+        if (this._typing) {
+          // Stay on working while keys are active
+          if (this.state !== 'working' && !this.locked && !this._feeding) {
+            this.play('working', { force: true });
+          }
+          this.later(step, 600);
+          return;
+        }
+        if (this._listening && this._resolveFile('listening')) {
+          if (this.state !== 'listening' && !this._feeding && this.state !== 'working') {
+            this.locked = false;
+            this.play('listening', { force: true });
+          }
+          this.later(step, 800);
+          return;
+        }
         if (this.locked || Date.now() < this._busyUntil) {
           this.later(step, 800);
           return;
         }
-        if ([...SLEEP_KEYS, ...EAT_KEYS, ...MINI_KEYS].includes(this.state)) {
+        if ([...SLEEP_KEYS, ...EAT_KEYS, ...MINI_KEYS, 'working', 'listening'].includes(this.state)) {
           this.later(step, 1000);
           return;
         }
@@ -352,6 +496,8 @@
         this.clearTimers();
         this.locked = false;
         this._feeding = false;
+        this._typing = false;
+        this._listening = false;
         this.play('sleeping', { force: true });
       } else {
         this.notePointer();
@@ -380,7 +526,12 @@
       if (EAT_KEYS.includes(this.state)) return;
       this._windowDragging = true;
       this.clearTimers();
-      this.play('reactDrag', { force: true });
+      // Prefer dedicated drag face; always force-swap so APNG/idle don't stick
+      if (this.hasAsset('reactDrag') || this._resolveFile('reactDrag')) {
+        this.play('reactDrag', { force: true });
+      } else if (!['idle', 'idleAnim', 'working', 'listening'].includes(this.state)) {
+        this.play('idle', { force: true });
+      }
       // Keep locked for the whole drag (play() without lock would unlock)
       this.locked = true;
       this._busyUntil = Date.now() + 86400000;

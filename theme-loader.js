@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { shell } = require('electron');
 
-const RESERVED_IDS = new Set(['blackhole', 'calico', 'template']);
+const RESERVED_IDS = new Set(['blackhole', 'calico', 'danchen', 'template']);
 const HIDDEN_IDS = new Set(['template']);
 
 const DEFAULT_TIMINGS = {
@@ -16,6 +16,7 @@ const DEFAULT_TIMINGS = {
   waking: 2500,
   thinking: 4000,
   working: 4000,
+  listening: 6000,
   juggling: 4000,
   building: 4000,
   conducting: 4000,
@@ -192,7 +193,9 @@ function normalizeTheme(id, raw, themeDir, source) {
     timings,
     sleepSequence,
     miniMode,
-    eatLabel: raw.eatLabel || (id === 'calico' ? '小猫' : '宠物'),
+    eatLabel:
+      raw.eatLabel ||
+      (id === 'calico' ? '小猫' : id === 'danchen' ? '丹童' : '宠物'),
     toastOk: raw.toastOk || null,
     toastFail: raw.toastFail || null,
   };
@@ -262,7 +265,7 @@ function listThemes() {
   return [...map.values()]
     .filter((t) => !HIDDEN_IDS.has(t.id))
     .sort((a, b) => {
-      const order = { blackhole: 0, calico: 1 };
+      const order = { blackhole: 0, calico: 1, danchen: 2 };
       const ao = order[a.id] != null ? order[a.id] : 10;
       const bo = order[b.id] != null ? order[b.id] : 10;
       if (ao !== bo) return ao - bo;

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "danchen",
+  "name": "炼丹少年",
+  "type": "pet",
+  "author": "black-hole-recycle-bin",
+  "version": "1.2.1",
+  "description": "仙侠炼丹少年桌宠：常态 / 搞怪 / 张嘴吃文件 / 炼丹输入 / 听歌 / 拖拽 / 贴边迷你",
+  "viewBox": { "x": 0, "y": 0, "width": 512, "height": 512 },
+  "eatLabel": "丹童",
+  "toastOk": "丹成～进回收站了",
+  "toastFail": "炼废了…",
+  "sleepSequence": { "mode": "direct" },
+  "timings": {
+    "idleAnim": 6000,
+    "attention": 4200,
+    "notification": 4200,
+    "working": 8000,
+    "listening": 8000,
+    "reactDrag": 1600,
+    "reactPoke": 2200,
+    "eatChew": 1800,
+    "waking": 1600
+  },
+  "states": {
+    "idle": ["idle-1.apng", "idle-1.png"],
+    "idleAnim": ["idle-2.apng", "idle-2.png"],
+    "attention": ["funny.apng", "funny.png"],
+    "notification": ["funny.apng", "funny.png"],
+    "reactPoke": ["funny.apng", "funny.png"],
+    "reactDrag": ["drag.png", "drag.apng"],
+    "working": ["alchemy.apng", "alchemy.png"],
+    "listening": ["listening.apng", "listening.png"],
+    "eatOpen": ["eat-open.png"],
+    "eatChew": ["eat-chew.png"],
+    "eatChew2": ["eat-chew2.png"],
+    "eatChew3": ["eat-chew3.png"],
+    "sleeping": ["sit.apng", "sit.png"],
+    "waking": ["idle-2.apng", "idle-2.png"],
+    "error": ["funny.apng", "funny.png"],
+    "miniIdle": ["mini.png"],
+    "miniEnter": ["mini.png"],
+    "miniPeek": ["mini.png"],
+    "miniSleep": ["mini.png"]
+  },
+  "miniMode": {
+    "supported": true,
+    "flipAssets": false,
+    "offsetRatio": 0.38,
+    "scale": 0.98,
+    "offsetY": 4,
+    "states": {
+      "miniIdle": ["mini.png"],
+      "miniEnter": ["mini.png"],
+      "miniPeek": ["mini.png"],
+      "miniSleep": ["mini.png"]
+    }
+  }
+}

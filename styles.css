@@ -76,6 +76,18 @@ body::after {
   image-rendering: auto;
 }
 
+/* Danchen: assets are pre-normalized on a square canvas (bottom-anchored) */
+body[data-theme="danchen"] #pet-img {
+  object-position: center bottom;
+  object-fit: contain;
+  transform-origin: 50% 96%;
+}
+
+body[data-theme="danchen"] #hit {
+  inset: 8% 12% 4% 12%;
+  border-radius: 22%;
+}
+
 #crumbs {
   position: absolute;
   inset: 0;
@@ -271,7 +283,8 @@ body.drag-files #hit {
   -webkit-app-region: no-drag;
 }
 
-body.drag-files[data-theme="calico"] #pet-img {
+body.drag-files[data-theme="calico"] #pet-img,
+body.drag-files[data-theme="danchen"] #pet-img {
   filter: none;
   opacity: 0.98;
 }
@@ -282,6 +295,12 @@ body.window-dragging #pet-img {
   object-position: center 62%;
   width: 100%;
   height: 100%;
+}
+
+body.window-dragging[data-theme="danchen"] #pet-img {
+  object-position: center bottom;
+  transform: scale(1.06) rotate(-4deg);
+  transform-origin: 50% 90%;
 }
 
 /* Mini mode docking (left / right)
@@ -314,6 +333,19 @@ body.mini-mode.mini-flip-assets[data-theme="calico"] #pet-img {
   transform: scaleX(-1);
 }
 
+/* Danchen mini: peek face from edge; left dock mirrors via #pet scaleX(-1) */
+body.mini-mode[data-theme="danchen"] #pet-img {
+  width: 118%;
+  height: 118%;
+  max-width: none;
+  object-fit: contain;
+  object-position: 40% 26%;
+  margin-left: -2%;
+  margin-top: -4%;
+  transform: rotate(-42deg);
+  transform-origin: 70% 55%;
+}
+
 body.mini-mode #hit {
   cursor: pointer;
 }
@@ -328,6 +360,12 @@ body.mini-mode #hit {
   transform: none;
   transform-origin: 50% 78%;
   animation: none !important;
+}
+
+body[data-theme="danchen"] #pet-img.pet-eating-open,
+body[data-theme="danchen"] #pet-img.pet-chewing {
+  object-position: center bottom;
+  transform-origin: 50% 96%;
 }
 
 #toast {

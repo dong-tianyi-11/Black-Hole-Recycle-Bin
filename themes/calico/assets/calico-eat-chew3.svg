@@ -33,49 +33,52 @@
      inkscape:current-layer="g8" />
   <defs
      id="defs1">
-    <style
-       id="style1">
+    <style id="style1">
     .breathe {
       transform-origin: 768px 960px;
       animation: chew-bob 0.28s infinite ease-in-out;
+      animation-delay: -0.07s;
     }
     @keyframes chew-bob {
-      0%, 100% { transform: scale(1, 1) translateY(0); }
-      50% { transform: scale(1.015, 0.985) translateY(3px); }
+      0%, 100% { transform: scale(1, 1) translateY(0) rotate(0deg); }
+      50% { transform: scale(1.02, 0.98) translateY(4px) rotate(0.6deg); }
     }
     #eye-sockets, #eye-pupils, #eye-highlights {
       transform-origin: 725px 495px;
-      /* squint while chewing — no full blink */
       animation: squint 0.28s infinite ease-in-out;
+      animation-delay: -0.07s;
     }
     @keyframes squint {
-      0%, 100% { transform: scaleY(0.92); }
-      50% { transform: scaleY(0.78); }
+      0%, 100% { transform: scaleY(0.9); }
+      50% { transform: scaleY(0.72); }
     }
     .tail-sway {
       transform-origin: 1200px 620px;
       animation: tail-sway 0.28s infinite ease-in-out;
+      animation-delay: -0.07s;
     }
     @keyframes tail-sway {
-      0%, 100% { transform: rotate(-2deg); }
-      50% { transform: rotate(8deg); }
+      0%, 100% { transform: rotate(2deg); }
+      50% { transform: rotate(-6deg); }
     }
     #mouth-group {
       transform-origin: 720px 545px;
       animation: jaw 0.28s infinite ease-in-out;
+      animation-delay: -0.07s;
     }
     @keyframes jaw {
-      0%, 100% { transform: scaleY(0.42) translateY(0); }
-      50% { transform: scaleY(1) translateY(4px); }
+      0%, 100% { transform: scaleY(0.7) translateY(2px); }
+      50% { transform: scaleY(1.12) translateY(6px); }
     }
     #cheek-left, #cheek-right {
       transform-box: fill-box;
       transform-origin: center;
       animation: cheek-chew 0.28s infinite ease-in-out;
+      animation-delay: -0.07s;
     }
     @keyframes cheek-chew {
-      0%, 100% { transform: scale(1, 1); opacity: 0.9; }
-      50% { transform: scale(1.08, 0.92); opacity: 1; }
+      0%, 100% { transform: scale(1.02, 0.98); opacity: 0.95; }
+      50% { transform: scale(1.1, 0.9); opacity: 1; }
     }
   </style>
   </defs>
@@ -320,10 +323,12 @@
          opacity="0.5" />
     </g>
     <g id="mouth-group">
-      <ellipse id="mouth-chew-outer" cx="720" cy="560" rx="28" ry="22" fill="#3A1A10"/>
-      <ellipse id="mouth-inner" cx="720" cy="566" rx="18" ry="12" fill="#5A2418"/>
-      <ellipse id="tongue-chew" cx="720" cy="570" rx="12" ry="8" fill="#E88A8A"/>
-      <path d="M700 548 Q720 544 740 548" fill="none" stroke="#5B2B17" stroke-width="3.5" stroke-linecap="round"/>
+      <ellipse id="mouth-chew-outer" cx="720" cy="564" rx="32" ry="26" fill="#3A1A10"/>
+      <ellipse id="mouth-inner" cx="720" cy="570" rx="22" ry="16" fill="#5A2418"/>
+      <ellipse id="tongue-chew" cx="720" cy="576" rx="14" ry="9" fill="#E88A8A"/>
+      <path id="fang-l" d="M702 550 L708 550 L705 560 Z" fill="#FFF8F0"/>
+      <path id="fang-r" d="M732 550 L738 550 L735 560 Z" fill="#FFF8F0"/>
+      <path d="M698 550 Q720 544 742 550" fill="none" stroke="#5B2B17" stroke-width="3.5" stroke-linecap="round"/>
     </g>
     <g
        id="whiskers-right">

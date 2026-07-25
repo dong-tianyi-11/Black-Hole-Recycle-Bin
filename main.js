@@ -22,6 +22,8 @@ const {
 const { createUpdater } = require('./updater');
 const { createMiniController } = require('./mini');
 const aiSecrets = require('./ai-secrets');
+const keyboardActivity = require('./keyboard-activity');
+const mediaActivity = require('./media-activity');
 
 app.setPath('userData', path.join(app.getPath('appData'), 'black-hole-recycle-bin'));
 
@@ -65,6 +67,7 @@ let userDragging = false;
 let userResizing = false;
 let dragLockSize = null; // { width, height } frozen for the whole drag
 let dragGrabOffset = null; // cursor - window origin at drag start (DIP)
+let dragFollowTimer = null; // main-process follow loop (avoids IPC/pointer lag)
 let allowPulseResize = false;
 let lastActiveAt = Date.now();
 let mousePassthrough = true;
@@ -225,6 +228,34 @@ function applyClampedBounds(x, y, w, h) {
   const pos = clampToDisplays(screen, x, y, w, h);
   mainWindow.setBounds({ x: pos.x, y: pos.y, width: w, height: h });
   return pos;
+}
+
+function stopDragFollow() {
+  if (dragFollowTimer) {
+    clearInterval(dragFollowTimer);
+    dragFollowTimer = null;
+  }
+}
+
+/** Keep window glued to cursor in main process (~60fps), not only on renderer IPC. */
+function followDragCursor() {
+  if (!userDragging || !mainWindow || mainWindow.isDestroyed()) return;
+  if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
+  if (!dragLockSize || !dragGrabOffset) return;
+  const point = screen.getCursorScreenPoint();
+  const wantX = Math.round(point.x - dragGrabOffset.x);
+  const wantY = Math.round(point.y - dragGrabOffset.y);
+  const pos = applyClampedBounds(wantX, wantY, dragLockSize.width, dragLockSize.height);
+  // If clamp blocked movement, re-anchor grab so cursor doesn't drift away from the pet
+  if (pos && (pos.x !== wantX || pos.y !== wantY)) {
+    dragGrabOffset = { x: point.x - pos.x, y: point.y - pos.y };
+  }
+}
+
+function startDragFollow() {
+  stopDragFollow();
+  followDragCursor();
+  dragFollowTimer = setInterval(followDragCursor, 16);
 }
 
 function saveThemePosition(themeId) {
@@ -495,6 +526,71 @@ function setWindowSize(size) {
   }
 }
 
+function sendMediaActivity(on) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (loadConfig().doNotDisturb) return;
+  if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
+  try {
+    mainWindow.webContents.send('media-activity', !!on);
+  } catch (_) {}
+}
+
+function mediaPlayingNow() {
+  try {
+    return !!mediaActivity.isPlaying();
+  } catch (_) {
+    return false;
+  }
+}
+
+function syncTypingKeyboardMonitor() {
+  const theme = themeLoader.loadTheme(currentThemeId());
+  const want = !!(theme && theme.type === 'pet');
+  if (!want) {
+    keyboardActivity.stop();
+    mediaActivity.stop();
+    if (syncTypingKeyboardMonitor._mediaSync) {
+      clearInterval(syncTypingKeyboardMonitor._mediaSync);
+      syncTypingKeyboardMonitor._mediaSync = null;
+    }
+    return;
+  }
+  keyboardActivity.start((on) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (loadConfig().doNotDisturb) return;
+    if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
+    try {
+      mainWindow.webContents.send('typing-activity', !!on);
+    } catch (_) {}
+  });
+  mediaActivity.start((on) => {
+    sendMediaActivity(on);
+  });
+  // Catch-up: probe may have flipped before BrowserWindow was ready
+  sendMediaActivity(mediaActivity.isPlaying());
+  setTimeout(() => {
+    mediaActivity.notify?.();
+    sendMediaActivity(mediaActivity.isPlaying());
+  }, 800);
+  setTimeout(() => {
+    mediaActivity.notify?.();
+    sendMediaActivity(mediaActivity.isPlaying());
+  }, 2200);
+  // Periodic resync — recovers missed IPC / theme-enable races while music plays
+  if (syncTypingKeyboardMonitor._mediaSync) {
+    clearInterval(syncTypingKeyboardMonitor._mediaSync);
+  }
+  syncTypingKeyboardMonitor._mediaSync = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const themeNow = themeLoader.loadTheme(currentThemeId());
+    if (!themeNow || themeNow.type !== 'pet') return;
+    sendMediaActivity(mediaActivity.isPlaying());
+  }, 2000);
+  if (syncTypingKeyboardMonitor._mediaSync.unref) {
+    syncTypingKeyboardMonitor._mediaSync.unref();
+  }
+}
+
 function setTheme(themeId) {
   const theme = themeLoader.loadTheme(themeId);
   if (!theme) return;
@@ -523,6 +619,7 @@ function setTheme(themeId) {
   saveThemePosition(theme.id);
 
   sendThemePayload(theme.id);
+  syncTypingKeyboardMonitor();
 
   if (theme.type === 'blackhole' && !loadConfig().doNotDisturb) {
     quietRefreshPlate();
@@ -1191,6 +1288,8 @@ function rebuildTrayMenu() {
 }
 
 function registerIpc() {
+  ipcMain.handle('get-media-activity', () => mediaPlayingNow());
+
   ipcMain.handle('get-config', () => {
     const cfg = loadConfig();
     const theme = themeLoader.loadTheme(cfg.theme || 'blackhole');
@@ -1284,6 +1383,7 @@ function registerIpc() {
     const after = mainWindow.getBounds();
     const point = screen.getCursorScreenPoint();
     dragGrabOffset = { x: point.x - after.x, y: point.y - after.y };
+    startDragFollow();
     try {
       const cfg = loadConfig();
       if (cfg.alwaysOnTop !== false) {
@@ -1309,16 +1409,13 @@ function registerIpc() {
       const b = mainWindow.getBounds();
       dragGrabOffset = { x: point.x - b.x, y: point.y - b.y };
     }
-    applyClampedBounds(
-      Math.round(point.x - dragGrabOffset.x),
-      Math.round(point.y - dragGrabOffset.y),
-      dragLockSize.width,
-      dragLockSize.height
-    );
+    if (!dragFollowTimer) startDragFollow();
+    followDragCursor();
   });
 
   ipcMain.on('drag-end', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
+    stopDragFollow();
     userDragging = false;
     isMoving = false;
     dragLockSize = null;
@@ -1445,6 +1542,7 @@ if (!gotLock) {
     registerIpc();
     createWindow();
     createTray();
+    syncTypingKeyboardMonitor();
 
     try {
       const m = getMini();
@@ -1496,6 +1594,10 @@ if (!gotLock) {
   app.on('window-all-closed', (e) => e.preventDefault());
 
   app.on('before-quit', () => {
+    try {
+      keyboardActivity.stop();
+      mediaActivity.stop();
+    } catch (_) {}
     try {
       getUpdater().stopScheduler();
     } catch (_) {}

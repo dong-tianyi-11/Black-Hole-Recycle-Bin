@@ -153,6 +153,12 @@
     renderer?.setLowPower?.(!!payload?.lowPowerIdle);
     renderer?.resize();
     syncPassthrough();
+    // Theme/enable reset can race with media IPC — re-sync listening face
+    if (isPet() && !doNotDisturb && !miniMode) {
+      window.blackHole.getMediaActivity?.()
+        .then((playing) => pet?.setListening?.(!!playing))
+        .catch(() => {});
+    }
   }
 
   async function init() {
@@ -177,7 +183,14 @@
       doNotDisturb = !!on;
       pet?.setDoNotDisturb(doNotDisturb);
       if (doNotDisturb) showToast('已进入勿扰 / 睡眠');
-      else showToast('已唤醒');
+      else {
+        showToast('已唤醒');
+        if (isPet() && !miniMode) {
+          window.blackHole.getMediaActivity?.()
+            .then((playing) => pet?.setListening?.(!!playing))
+            .catch(() => {});
+        }
+      }
     });
     window.blackHole.onLowPowerChanged((on) => {
       renderer?.setLowPower?.(!!on);
@@ -205,7 +218,26 @@
       document.body.classList.remove('mini-mode', 'mini-left', 'mini-flip-assets');
       if (isPet()) pet?.setMiniMode(false);
       syncPassthrough();
+      if (isPet() && !doNotDisturb) {
+        window.blackHole.getMediaActivity?.()
+          .then((playing) => pet?.setListening?.(!!playing))
+          .catch(() => {});
+      }
     });
+
+    window.blackHole.onTypingActivity?.((on) => {
+      if (!isPet() || doNotDisturb || miniMode) return;
+      pet?.setTyping?.(!!on);
+    });
+    window.blackHole.onMediaActivity?.((on) => {
+      if (!isPet() || doNotDisturb || miniMode) return;
+      pet?.setListening?.(!!on);
+    });
+    // Catch media already playing before the listener was registered
+    try {
+      const playing = await window.blackHole.getMediaActivity?.();
+      if (isPet() && !doNotDisturb && !miniMode) pet?.setListening?.(!!playing);
+    } catch (_) {}
 
     let deskFrameBusy = false;
     let deskFramePending = null;
@@ -434,9 +466,8 @@
   });
 
   hit.addEventListener('lostpointercapture', () => {
-    if (pointerDown || dragging) {
-      endPointerDrag(null, { cancel: true });
-    }
+    // Don't end drag here — capture can drop while the button is still down
+    // (fast moves / DPI). Main process keeps following the cursor until pointerup.
   });
 
   hit.addEventListener('click', (e) => {
@@ -567,7 +598,9 @@
     if (isBlackhole()) renderer?.triggerFeed(1.6);
     if (isPet()) pet?.startEating();
 
-    const eatLabel = themeMeta?.eatLabel || (theme === 'calico' ? '小猫' : '宠物');
+    const eatLabel =
+      themeMeta?.eatLabel ||
+      (theme === 'calico' ? '小猫' : theme === 'danchen' ? '丹童' : '宠物');
     const eatingLabel = isPet() ? `${eatLabel}吃掉了` : '正在吸入';
     showToast(`${eatingLabel} ${paths.length} 项…（大文件/文件夹可能需较久）`, 8000);
 

@@ -2,9 +2,11 @@
 
 Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把文件拖进去送入系统回收站。
 
-仓库：[gitee.com/dong-tianyi-11/black-hole-recycle-bin](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin)
+仓库：
+- Gitee（发行版 / 自动更新）：[gitee.com/dong-tianyi-11/black-hole-recycle-bin](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin)
+- GitHub：[github.com/dong-tianyi-11/Black-Hole-Recycle-Bin](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin)
 
-内置皮肤：**黑洞**、**三花小猫**。支持自定义主题与 **Gitee 自动更新**。
+内置皮肤：**黑洞**、**三花小猫**、**炼丹少年**。支持自定义主题与 **Gitee 自动更新**。
 
 ## 系统要求
 
