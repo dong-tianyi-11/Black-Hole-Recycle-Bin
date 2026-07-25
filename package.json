@@ -1,6 +1,6 @@
 {
   "name": "black-hole-recycle-bin",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Interstellar-style desktop black hole pet that sends dropped files to the Recycle Bin",
   "main": "main.js",
   "author": "",
