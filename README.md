@@ -10,15 +10,16 @@ Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把�
 
 ## 永久下载直链
 
-链接固定不变，每次发版会覆盖同名安装包；点击即开始下载。
+链接固定不变，每次发版会覆盖同名安装包；**点击即下载现成安装包，用户无需自行构建**。  
+当前版本 **v1.1.1**（含 Windows + macOS arm64 / Intel）。
 
-| 平台 | GitHub（推荐） | Gitee |
-|------|----------------|-------|
-| Windows x64（当前 **v1.1.1**） | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
-| macOS Apple Silicon (M 系列) | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-arm64.dmg) |
-| macOS Intel | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-x64.dmg) |
+| 平台 | 下载（推荐 GitHub） | 备用 |
+|------|---------------------|------|
+| Windows x64 | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [Gitee](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
+| macOS Apple Silicon (M 系列) | [直接下载 .dmg](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg) | 同左（Gitee 单文件上限约 100MB，Mac 包请用 GitHub） |
+| macOS Intel | [直接下载 .dmg](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg) | 同左（请用 GitHub） |
 
-纯文本链接（可放进文档 / 官网）：
+纯文本直链：
 
 ```text
 https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe
@@ -26,7 +27,7 @@ https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/downloa
 https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg
 ```
 
-已安装用户也可：托盘 → **检查更新**（读取 Gitee `latest` 发行版）。
+已安装用户也可：托盘 → **检查更新**（Windows 读 Gitee `latest`；macOS 会提示到发行页下载）。
 
 ## 系统要求
 
@@ -116,24 +117,18 @@ npm install
 npm start
 ```
 
-## 打包与发布更新
+## 打包与发布更新（维护者）
+
+普通用户请用上方直链下载，不必本地打包。
 
 ```bash
-# 1) 改 package.json 的 version
-# 2) 打 Windows 包（若 dist/win-unpacked 被占用，可打到 dist-release）
-npm run build:win
-# 或：
-npx electron-builder --win nsis:x64 --config.directories.output=dist-release
-
-# 3) 上传到 Gitee + GitHub 的 latest 发行版（覆盖旧附件）
-npm run publish:gitee
-npm run publish:github
-# 或：npm run publish:all
+# 1) 改 package.json 的 version，更新 README 版本号
+# 2) 推送到 GitHub master 后，在 Actions 运行 Build 工作流
+#    → 自动打 Windows + macOS（arm64/x64）安装包，并刷新 latest 直链
+# 3) Windows 也可本机：npm run build:win && npm run publish:gitee && npm run publish:github
 ```
 
-产物在 `dist/`（或 `dist-release/`）：`BlackHoleRecycleBin-Windows-x64.exe`、`latest.yml`、`*.blockmap`（macOS 为 `BlackHoleRecycleBin-macOS-*.dmg`）。
-
-也可在 GitHub Actions 手动运行 **Build** 工作流，自动打 Win/Mac 包并刷新 `latest` 发行版（永久直链会随之更新）。
+macOS 安装包由 GitHub Actions（`macos-latest`）构建，产物名：`BlackHoleRecycleBin-macOS-arm64.dmg` / `BlackHoleRecycleBin-macOS-x64.dmg`。
 
 ### 测试自动更新
 

@@ -5,6 +5,10 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - master
+    paths:
+      - 'package.json'
   workflow_dispatch:
 
 permissions:
