@@ -6,9 +6,10 @@
   <title>&#8203;</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body data-theme="blackhole">
+<body data-theme="blackhole" data-theme-type="blackhole">
   <div id="app">
     <canvas id="bh"></canvas>
+    <canvas id="saturn" aria-hidden="true"></canvas>
     <div id="pet" aria-hidden="true">
       <img id="pet-img" alt="" draggable="false" />
       <div id="pet-eat-fx"></div>
@@ -19,6 +20,7 @@
     <div id="toast" aria-live="polite"></div>
   </div>
   <script src="blackhole.js"></script>
+  <script src="saturn.js"></script>
   <script src="pet.js"></script>
   <script src="app.js"></script>
 </body>

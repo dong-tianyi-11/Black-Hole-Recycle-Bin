@@ -3,12 +3,22 @@
  */
 const { screen } = require('electron');
 
-const PEEK_OFFSET = 25;
+const PEEK_OFFSET = 52;
 const SNAP_TOLERANCE = 30;
-const JUMP_PEAK_HEIGHT = 40;
-const JUMP_DURATION = 350;
+/** Fraction of width that must hang past the work-area edge to dock (drag intent). */
+const MIN_OVERHANG_RATIO = 0.2;
+const JUMP_PEAK_HEIGHT = 64;
+const JUMP_DURATION = 480;
 const MINI_ENTER_FALLBACK_MS = 1200;
 const DEFAULT_OFFSET_RATIO = 0.486;
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function easeOutQuint(t) {
+  return 1 - Math.pow(1 - t, 5);
+}
 
 function normalizeEdge(edge) {
   return edge === 'left' ? 'left' : 'right';
@@ -159,7 +169,7 @@ function createMiniController(ctx) {
         return;
       }
       const t = Math.min(1, (Date.now() - startTime) / durationMs);
-      const eased = t * (2 - t);
+      const eased = easeOutCubic(t);
       const x = Math.round(startX + (targetX - startX) * eased);
       const y = Math.round(startY + (targetY - startY) * eased);
       try {
@@ -206,9 +216,10 @@ function createMiniController(ctx) {
         return;
       }
       const t = Math.min(1, (Date.now() - startTime) / durationMs);
-      const eased = t * (2 - t);
+      const eased = easeOutQuint(t);
       const x = Math.round(startX + (targetX - startX) * eased);
-      const arc = -4 * JUMP_PEAK_HEIGHT * t * (t - 1);
+      // Softer arc — peaks early, lands gently
+      const arc = Math.sin(Math.PI * easeOutCubic(t)) * JUMP_PEAK_HEIGHT;
       const y = Math.round(startY + (targetY - startY) * eased - arc);
       try {
         w.setBounds({ x, y, width: snapW, height: snapH });
@@ -271,33 +282,25 @@ function createMiniController(ctx) {
     if (miniMode || miniTransitioning) return false;
     const bounds = getBounds();
     const size = { width: bounds.width, height: bounds.height };
-    const mEdgeW = Math.round(size.width * 0.25);
-    const centerX = bounds.x + size.width / 2;
+    // Require a real overhang past the edge — "near the border" must not dock.
+    const need = Math.max(36, Math.round(size.width * MIN_OVERHANG_RATIO));
     const centerY = bounds.y + size.height / 2;
     const displays = screen.getAllDisplays();
 
     for (const d of displays) {
       const wa = d.workArea || d.bounds;
-      if (centerX < wa.x || centerX > wa.x + wa.width) continue;
+      // Vertical: keep using the display the window mostly sits on
       if (centerY < wa.y || centerY > wa.y + wa.height) continue;
 
-      const rightLimit = wa.x + wa.width - size.width + mEdgeW;
-      const leftLimit = wa.x - mEdgeW;
-      const gapRight = wa.x + wa.width - (bounds.x + size.width);
-      const gapLeft = bounds.x - wa.x;
+      const overhangRight = bounds.x + size.width - (wa.x + wa.width);
+      const overhangLeft = wa.x - bounds.x;
 
       const hits = [];
-      if (bounds.x >= rightLimit - SNAP_TOLERANCE || gapRight <= mEdgeW + SNAP_TOLERANCE) {
-        hits.push({
-          edge: 'right',
-          depth: Math.max(0, mEdgeW + SNAP_TOLERANCE - gapRight),
-        });
+      if (overhangRight >= need) {
+        hits.push({ edge: 'right', depth: overhangRight });
       }
-      if (bounds.x <= leftLimit + SNAP_TOLERANCE || gapLeft <= mEdgeW + SNAP_TOLERANCE) {
-        hits.push({
-          edge: 'left',
-          depth: Math.max(0, mEdgeW + SNAP_TOLERANCE - gapLeft),
-        });
+      if (overhangLeft >= need) {
+        hits.push({ edge: 'left', depth: overhangLeft });
       }
       if (!hits.length) continue;
 
@@ -335,7 +338,7 @@ function createMiniController(ctx) {
     notifyMenus();
 
     const enterState = ctx.isDoNotDisturb?.() ? 'miniSleep' : 'miniEnter';
-    const slideMs = viaMenu ? 220 : 100;
+    const slideMs = viaMenu ? 300 : 180;
 
     animateWindowTo(currentMiniX, currentMiniY, slideMs, () => {
       applyPetMiniState(enterState);
@@ -381,9 +384,20 @@ function createMiniController(ctx) {
     });
   }
 
-  /** Instant undock — used when user drags out of mini (no animation fight). */
+  /** Work area for a docked window (center may be off-screen). */
+  function workAreaForDocked(bounds, edge) {
+    const visibleX =
+      edge === 'left'
+        ? bounds.x + bounds.width - 8
+        : bounds.x + 8;
+    const cy = bounds.y + bounds.height / 2;
+    return nearestWorkArea(visibleX, cy);
+  }
+
+  /** Drag-undock — pop fully onto the work area (drag follow owns motion after). */
   function exitMiniModeImmediate() {
     if (!miniMode && !miniTransitioning) return false;
+    const edge = miniEdge;
     cancelMiniTransition();
     cancelAnim();
     miniPeeked = false;
@@ -395,14 +409,18 @@ function createMiniController(ctx) {
     if (w && !w.isDestroyed()) {
       const b = w.getBounds();
       const size = { width: b.width, height: b.height };
-      const wa = nearestWorkArea(b.x + size.width / 2, b.y + size.height / 2);
-      let x = b.x;
+      const wa = lastMiniWorkArea || workAreaForDocked(b, edge);
+      // Pull well inside the work area so the whole hole is grabbable
+      const inset = Math.round(size.width * 0.12);
+      let x =
+        edge === 'left'
+          ? wa.x + inset
+          : wa.x + wa.width - size.width - inset;
       let y = b.y;
-      // Pull fully onto the work area so the grab target isn't half off-screen
-      x = Math.min(Math.max(x, wa.x), wa.x + wa.width - size.width);
-      y = Math.min(Math.max(y, wa.y), wa.y + wa.height - size.height);
+      x = Math.min(Math.max(Math.round(x), wa.x), wa.x + wa.width - size.width);
+      y = Math.min(Math.max(Math.round(y), wa.y), wa.y + wa.height - size.height);
       try {
-        w.setBounds({ x: Math.round(x), y: Math.round(y), width: size.width, height: size.height });
+        w.setBounds({ x, y, width: size.width, height: size.height });
       } catch (_) {}
     }
 
@@ -434,15 +452,17 @@ function createMiniController(ctx) {
     if (miniPeeked) return;
     miniPeeked = true;
     const dx = miniEdge === 'left' ? PEEK_OFFSET : -PEEK_OFFSET;
-    animateWindowTo(currentMiniX + dx, currentMiniY, 200);
+    animateWindowTo(currentMiniX + dx, currentMiniY, 280);
     applyPetMiniState('miniPeek');
+    if (typeof ctx.sendMiniPeek === 'function') ctx.sendMiniPeek(true);
   }
 
   function miniPeekOut() {
     if (!miniMode || miniTransitioning) return;
     if (!miniPeeked) return;
     miniPeeked = false;
-    animateWindowTo(currentMiniX, currentMiniY, 200, () => {
+    if (typeof ctx.sendMiniPeek === 'function') ctx.sendMiniPeek(false);
+    animateWindowTo(currentMiniX, currentMiniY, 240, () => {
       applyPetMiniState(ctx.isDoNotDisturb?.() ? 'miniSleep' : 'miniIdle');
     });
   }

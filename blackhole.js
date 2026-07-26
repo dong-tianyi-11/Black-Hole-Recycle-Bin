@@ -19,6 +19,7 @@
     uniform float u_time;
     uniform vec2  u_res;
     uniform float u_feed;
+    uniform float u_hunger;
     uniform float u_intensity;
     uniform float u_hasDesktop;
     uniform float u_hasPlate;
@@ -63,37 +64,62 @@
       return (uv + p) / (1.0 + 2.0 * p);
     }
 
-    // Strong Interstellar-style gravitational lens (desktop warp)
+    // Convex prism + geodesic lens — warps a wide neighborhood of the desktop
     vec2 lensUV(vec2 p, float eh, float aspect) {
       float r = length(p);
       float rSafe = max(r, 1e-4);
-      float feedBoost = 1.0 + u_feed * 0.85;
-      // Strong radial pull toward horizon
-      float pull = clamp((eh / rSafe) * 2.8 * feedBoost, 0.0, 3.8);
-      // Animated frame-dragging swirl
-      float swirl = pull * 1.65 + u_time * 0.22 + 0.12 * sin(u_time * 0.55) + u_feed * 0.8;
+      float feedBoost = 1.0 + u_feed * 1.15 + u_hunger * 0.4;
+      vec2 dir = p / rSafe;
+
+      // --- Convex magnifier concentrated in a thin ring around the hole ---
+      float dome = smoothstep(0.72, eh * 1.15, rSafe) * smoothstep(eh * 0.95, eh * 1.25, rSafe);
+      float convexK = (0.38 + u_feed * 0.22 + u_hunger * 0.1) * dome;
+      float rLens = rSafe * (1.0 - convexK * (1.0 - rSafe * rSafe * 0.5));
+      float barrel = 1.0 + (0.12 + u_feed * 0.1) * rSafe * rSafe * dome;
+      rLens *= barrel;
+
+      // Schwarzschild-like extra pull near the horizon
+      float rs = eh * 0.95;
+      float denom = max(1.0 - rs / max(rLens, 1e-4), 0.06);
+      float pull = clamp((rs / max(rLens, 1e-4)) / denom * 1.7 * feedBoost, 0.0, 4.2);
+
+      // Frame-dragging swirl
+      float swirl = pull * 1.55 + u_time * 0.24 + 0.1 * sin(u_time * 0.5)
+        + u_feed * 0.95 + u_hunger * 0.2;
       float s = sin(swirl), c = cos(swirl);
       mat2 rot = mat2(c, -s, s, c);
-      // Stretch / squash — stronger near photon sphere
-      float stretch = 1.0 + pull * 2.4 * smoothstep(eh * 6.0, eh * 0.7, rSafe);
-      // Einstein-ring pinch
-      float ringPinch = 1.0 - 0.32 * exp(-pow((rSafe - eh * 1.35) / 0.055, 2.0));
-      // Secondary fold (light wraps behind)
-      float fold = 1.0 + 0.45 * pull * exp(-pow((rSafe - eh * 2.1) / 0.18, 2.0));
-      vec2 dir = p / rSafe;
-      vec2 bent = rot * dir * rSafe * stretch * ringPinch * fold;
-      // Tangential shear (space-time drag)
-      float shear = pull * 0.18 * sin(u_time * 0.4 + atan(p.y, p.x) * 2.0);
-      bent += vec2(-dir.y, dir.x) * shear * rSafe;
+
+      float stretch = 1.0 + pull * 2.2 * smoothstep(eh * 6.0, eh * 0.7, rLens);
+      float ringPinch = 1.0 - 0.34 * exp(-pow((rLens - eh * 1.36) / 0.05, 2.0));
+      float fold = 1.0 + 0.5 * pull * exp(-pow((rLens - eh * 2.0) / 0.17, 2.0));
+
+      vec2 bent = rot * dir * rLens * stretch * ringPinch * fold;
+      float ang = atan(p.y, p.x);
+      float shear = pull * 0.2 * sin(u_time * 0.4 + ang * 2.0);
+      bent += vec2(-dir.y, dir.x) * (shear * rLens + pull * 0.035 * log(1.0 + rLens * 3.0));
       return vec2(bent.x / aspect, bent.y) * 0.5 + 0.5;
     }
 
+    // Radial prism dispersion (R/G/B at slightly different radii + angles)
     vec3 sampleDesktopAt(sampler2D tex, vec2 pf, float eh, float aspect) {
-      float aberr = 0.012 * clamp((eh / max(length(pf), 1e-4)) * 1.5, 0.0, 1.5);
-      vec2 dir = normalize(pf + 1e-5);
-      vec2 luR = clamp(windowToCaptureUV(lensUV(pf + dir * aberr, eh, aspect)), 0.001, 0.999);
-      vec2 luG = clamp(windowToCaptureUV(lensUV(pf, eh, aspect)), 0.001, 0.999);
-      vec2 luB = clamp(windowToCaptureUV(lensUV(pf - dir * aberr, eh, aspect)), 0.001, 0.999);
+      float r = max(length(pf), 1e-4);
+      vec2 dir = pf / r;
+      vec2 tang = vec2(-dir.y, dir.x);
+      float prism = (0.018 + u_feed * 0.022) * smoothstep(0.95, eh * 1.1, r);
+      prism *= (0.55 + 0.45 * smoothstep(eh * 1.15, 0.55, r));
+
+      // Cheap path far out / low prism: one sample
+      if (prism < 0.006) {
+        vec2 lu = clamp(windowToCaptureUV(lensUV(pf, eh, aspect)), 0.001, 0.999);
+        return texture2D(tex, lu).rgb;
+      }
+
+      vec2 pR = dir * (r + prism * 1.15) + tang * prism * 0.35;
+      vec2 pG = pf;
+      vec2 pB = dir * (r - prism * 1.15) - tang * prism * 0.35;
+      vec2 luR = clamp(windowToCaptureUV(lensUV(pR, eh, aspect)), 0.001, 0.999);
+      vec2 luG = clamp(windowToCaptureUV(lensUV(pG, eh, aspect)), 0.001, 0.999);
+      vec2 luB = clamp(windowToCaptureUV(lensUV(pB, eh, aspect)), 0.001, 0.999);
       return vec3(
         texture2D(tex, luR).r,
         texture2D(tex, luG).g,
@@ -103,7 +129,8 @@
 
     vec3 sampleDesktopWarped(vec2 pf, float eh, float aspect) {
       vec3 cur = sampleDesktopAt(u_desktop, pf, eh, aspect);
-      if (u_hasDesktopPrev < 0.5) return cur;
+      // Skip crossfade while feeding hard — halves texture work during suck
+      if (u_hasDesktopPrev < 0.5 || u_feed > 0.35) return cur;
       vec3 prev = sampleDesktopAt(u_desktopPrev, pf, eh, aspect);
       return mix(prev, cur, clamp(u_deskMix, 0.0, 1.0));
     }
@@ -128,17 +155,17 @@
       float aspect = u_res.x / max(u_res.y, 1.0);
       p.x *= aspect;
 
-      float pulse = 1.0 + u_feed * 0.08 * sin(u_time * 15.0);
+      float pulse = 1.0 + u_feed * 0.09 * sin(u_time * 15.0) + u_hunger * 0.02;
       vec2 pf = p / pulse;
       float r = length(pf);
       float ang = atan(pf.y, pf.x);
 
       // Match reference plate silhouette (large EH + lensed halo)
-      float eh = 0.30;
+      float eh = 0.30 + u_hunger * 0.018;
       float ph = eh * 1.22;
 
-      // Soft circular window — room for diagonal accretion wings
-      float circleMask = 1.0 - smoothstep(0.78, 0.92, r);
+      // Tight circular window — thin lens ring around the plate
+      float circleMask = 1.0 - smoothstep(0.76, 0.90, r);
       if (circleMask < 0.001) {
         gl_FragColor = vec4(0.0);
         return;
@@ -147,28 +174,37 @@
       vec3 col = vec3(0.0);
       float alpha = 0.0;
 
-      // ===== 1) Desktop warp — thin ring outside the plate =====
+      // ===== 1) Desktop through convex prism — narrow warped ring =====
       if (u_hasDesktop > 0.5) {
         vec3 desk = sampleDesktopWarped(pf, eh * 0.88, aspect);
 
-        float warpInner = smoothstep(eh * 1.05, eh * 1.45, r);
-        float warpOuter = 1.0 - smoothstep(0.58, 0.78, r);
-        float warp = pow(warpInner * warpOuter, 0.55);
+        float warpInner = smoothstep(eh * 1.05, eh * 1.4, r);
+        float warpOuter = 1.0 - smoothstep(0.56, 0.74, r);
+        float warp = pow(max(warpInner * warpOuter, 0.0), 0.55);
+        // Thin glass lip only near the photon ring (not a wide dome)
+        float domeA = exp(-pow((r - ph) / 0.085, 2.0)) * smoothstep(eh * 1.05, eh * 1.3, r);
+        warp = max(warp, domeA * (0.4 + u_feed * 0.2));
 
         float mag = 1.0
-          + 1.8 * exp(-pow((r - ph) / 0.05, 2.0))
-          + 0.7 * exp(-pow((r - eh * 1.12) / 0.035, 2.0))
-          + 0.45 * exp(-pow((r - ph * 1.55) / 0.1, 2.0));
+          + (2.1 + u_hunger * 0.4) * exp(-pow((r - ph) / 0.038, 2.0))
+          + 0.85 * exp(-pow((r - eh * 1.12) / 0.028, 2.0))
+          + 0.45 * exp(-pow((r - ph * 1.45) / 0.08, 2.0));
 
-        float deskA = clamp(warp * 0.95, 0.0, 1.0);
+        float deskA = clamp(warp * 0.98, 0.0, 1.0);
         col = mix(col, desk * mag, deskA);
         alpha = max(alpha, deskA);
 
+        // Prism fringe hugging the photon ring
+        float rim = exp(-pow((r - ph) / 0.045, 2.0)) * (0.22 + u_feed * 0.3);
+        col += vec3(0.55, 0.75, 1.0) * rim * 0.12;
+        col += vec3(1.0, 0.45, 0.35) * rim * 0.08;
+        alpha = max(alpha, rim * 0.28);
+
         float deskLum = dot(desk, vec3(0.3, 0.59, 0.11));
-        float swirlBand = pow(abs(sin(ang * 5.0 - u_time * 1.6 - log(max(r, 0.05)) * 6.0)), 8.0);
-        swirlBand *= warp * smoothstep(eh * 1.15, 0.9, r) * (0.35 + 0.65 * deskLum);
-        col += desk * swirlBand * 0.5;
-        alpha = max(alpha, swirlBand * 0.45);
+        float swirlBand = pow(abs(sin(ang * 5.0 - u_time * 1.7 - log(max(r, 0.05)) * 6.5)), 8.0);
+        swirlBand *= warp * smoothstep(eh * 1.12, 0.72, r) * (0.3 + 0.7 * deskLum);
+        col += desk * swirlBand * (0.45 + u_feed * 0.3);
+        alpha = max(alpha, swirlBand * 0.4);
       }
 
       // ===== 2) Accretion plate — preserve reference composition =====
@@ -204,14 +240,16 @@
           vec3 prgb = plate.rgb;
           prgb = mix(prgb, prgb * vec3(1.06, 0.98, 0.88), 0.18);
 
-          // Soft photon-ring breath on the already-bright plate edge
-          float ringPulse = 0.06 * sin(u_time * 1.8) + 0.04 * sin(u_time * 3.6 + aa);
-          float nearRing = exp(-pow(abs(rr - ph) / 0.08, 2.0));
-          prgb += vec3(1.0, 0.92, 0.7) * nearRing * ringPulse * plate.a;
+          // Photon-ring breath (critical curve glow)
+          float ringPulse = 0.08 * sin(u_time * 1.9) + 0.05 * sin(u_time * 3.8 + aa);
+          float nearRing = exp(-pow(abs(rr - ph) / 0.065, 2.0));
+          float secondary = exp(-pow(abs(rr - ph * 1.55) / 0.09, 2.0)) * 0.35;
+          prgb += vec3(1.0, 0.93, 0.72) * (nearRing + secondary) * (ringPulse + 0.08 * u_hunger) * plate.a;
 
-          // Subtle Doppler: brighter on the approaching side
-          float doppler = 0.94 + 0.12 * clamp(q.x * 0.7 + 0.08 * sin(u_time * 0.45), -0.35, 0.7);
+          // Doppler: approaching limb brighter / blueshifted edge
+          float doppler = 0.92 + 0.16 * clamp(q.x * 0.75 + 0.1 * sin(u_time * 0.45), -0.4, 0.75);
           prgb *= doppler;
+          prgb *= mix(vec3(1.06, 0.96, 0.88), vec3(0.92, 0.96, 1.08), clamp(0.5 + q.x * 0.35, 0.0, 1.0));
 
           // Mild HDR lift so bloom reads like the reference
           prgb *= 1.0 + 0.12 * smoothstep(0.25, 0.85, plLum) * u_intensity;
@@ -247,14 +285,11 @@
       col += vec3(1.0, 0.94, 0.75) * lip * 0.55 * lipPulse;
       alpha = max(alpha, lip * 0.5);
 
+      // Feed: slight horizon darken only — file shred FX is DOM, not light particles
       if (u_feed > 0.01) {
-        float flash = u_feed * exp(-pow(r / 0.42, 2.0));
-        col += vec3(1.0, 0.9, 0.65) * flash * 1.0;
-        alpha = max(alpha, flash);
-        float spiral = sin(ang * 6.0 - u_time * 10.0 - log(max(r, 0.05)) * 8.0);
-        spiral = pow(clamp(spiral * 0.5 + 0.5, 0.0, 1.0), 12.0) * u_feed;
-        spiral *= smoothstep(0.78, eh, r);
-        col += plasma(0.12) * spiral * 0.55;
+        float pullShade = u_feed * 0.22 * smoothstep(0.85, eh * 0.9, r);
+        col *= 1.0 - pullShade;
+        alpha = max(alpha, pullShade * 0.35);
       }
 
       alpha *= circleMask;
@@ -305,11 +340,12 @@
       const gl = this.gl;
       this.program = createProgram(gl, VS, FS);
       this.feed = 0;
+      this.hunger = 0;
       this.intensity = 1.15;
       this.hasDesktop = 0;
       this.hasDesktopPrev = 0;
       this.hasPlate = 0;
-      this.padRatio = 0.38;
+      this.padRatio = 0.42;
       this.deskMix = 1;
       this._lastFrameTime = 0;
       this.enabled = true;
@@ -352,6 +388,7 @@
         time: gl.getUniformLocation(this.program, 'u_time'),
         res: gl.getUniformLocation(this.program, 'u_res'),
         feed: gl.getUniformLocation(this.program, 'u_feed'),
+        hunger: gl.getUniformLocation(this.program, 'u_hunger'),
         intensity: gl.getUniformLocation(this.program, 'u_intensity'),
         hasDesktop: gl.getUniformLocation(this.program, 'u_hasDesktop'),
         hasDesktopPrev: gl.getUniformLocation(this.program, 'u_hasDesktopPrev'),
@@ -414,6 +451,10 @@
       this.feed = Math.min(2.2, this.feed + strength);
       // Keep animation alive longer while feeding
       if (this.lowPower) this._skipFrames = 0;
+    }
+
+    setHunger(h = 0) {
+      this.hunger = Math.max(0, Math.min(1, h));
     }
 
     async updateDesktopTexture(uint8Array, padRatio, mime = 'image/jpeg') {
@@ -498,9 +539,14 @@
       gl.uniform1f(this.uniforms.time, t);
       gl.uniform2f(this.uniforms.res, this.canvas.width, this.canvas.height);
       gl.uniform1f(this.uniforms.feed, this.feed);
+      gl.uniform1f(this.uniforms.hunger, this.hunger);
       gl.uniform1f(this.uniforms.intensity, this.intensity);
       gl.uniform1f(this.uniforms.hasDesktop, this.hasDesktop);
-      gl.uniform1f(this.uniforms.hasDesktopPrev, this.hasDesktopPrev);
+      // Drop ping-pong blend while sucking — cheaper + snappier warp
+      gl.uniform1f(
+        this.uniforms.hasDesktopPrev,
+        this.feed > 0.3 ? 0 : this.hasDesktopPrev
+      );
       gl.uniform1f(this.uniforms.hasPlate, this.hasPlate);
       gl.uniform1f(this.uniforms.padRatio, this.padRatio);
       gl.uniform1f(this.uniforms.deskMix, deskMixUniform);

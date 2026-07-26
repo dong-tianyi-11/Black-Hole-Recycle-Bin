@@ -5,7 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const { shell } = require('electron');
 
-const RESERVED_IDS = new Set(['blackhole', 'calico', 'danchen', 'template']);
+const RESERVED_IDS = new Set(['blackhole', 'saturn', 'calico', 'danchen', 'template']);
+const CANVAS_TYPES = new Set(['blackhole', 'saturn']);
 const HIDDEN_IDS = new Set(['template']);
 
 const DEFAULT_TIMINGS = {
@@ -94,17 +95,17 @@ function firstExistingFile(assetsDir, files) {
 
 function normalizeTheme(id, raw, themeDir, source) {
   if (!raw || raw._scaffoldOnly) return null;
-  const type = raw.type === 'blackhole' ? 'blackhole' : 'pet';
+  const type = CANVAS_TYPES.has(raw.type) ? raw.type : 'pet';
   const viewBox = raw.viewBox || { width: 1, height: 1 };
   const vw = Number(viewBox.width) || 1;
   const vh = Number(viewBox.height) || 1;
-  const assetsDir = type === 'blackhole' ? themeDir : path.join(themeDir, 'assets');
+  const assetsDir = CANVAS_TYPES.has(type) ? themeDir : path.join(themeDir, 'assets');
   const statesRaw = raw.states || {};
   const resolved = {};
 
   for (const [key, entry] of Object.entries(statesRaw)) {
     const { files, fallbackTo } = resolveStateEntry(entry);
-    const file = type === 'blackhole' ? null : firstExistingFile(assetsDir, files);
+    const file = CANVAS_TYPES.has(type) ? null : firstExistingFile(assetsDir, files);
     resolved[key] = {
       file,
       files,
@@ -142,7 +143,7 @@ function normalizeTheme(id, raw, themeDir, source) {
   const miniAssetMap = {};
   for (const [key, entry] of Object.entries(miniStatesRaw)) {
     const { files } = resolveStateEntry(entry);
-    const file = type === 'blackhole' ? null : firstExistingFile(assetsDir, files);
+    const file = CANVAS_TYPES.has(type) ? null : firstExistingFile(assetsDir, files);
     if (file) miniAssetMap[key] = file;
   }
   // Also allow mini states listed in main states map (camelCase keys)
@@ -164,7 +165,7 @@ function normalizeTheme(id, raw, themeDir, source) {
 
   // Relative URL base for renderer (file:// via loadFile resolves against app root for builtins)
   let assetBase;
-  if (type === 'blackhole') {
+  if (CANVAS_TYPES.has(type)) {
     assetBase = null;
   } else if (source === 'builtin') {
     assetBase = `themes/${id}/assets/`;
@@ -195,7 +196,7 @@ function normalizeTheme(id, raw, themeDir, source) {
     miniMode,
     eatLabel:
       raw.eatLabel ||
-      (id === 'calico' ? '小猫' : id === 'danchen' ? '丹童' : '宠物'),
+      (id === 'calico' ? '小猫' : id === 'danchen' ? '丹童' : id === 'saturn' ? '土星' : '宠物'),
     toastOk: raw.toastOk || null,
     toastFail: raw.toastFail || null,
   };
@@ -265,7 +266,7 @@ function listThemes() {
   return [...map.values()]
     .filter((t) => !HIDDEN_IDS.has(t.id))
     .sort((a, b) => {
-      const order = { blackhole: 0, calico: 1, danchen: 2 };
+      const order = { blackhole: 0, saturn: 1, calico: 2, danchen: 3 };
       const ao = order[a.id] != null ? order[a.id] : 10;
       const bo = order[b.id] != null ? order[b.id] : 10;
       if (ao !== bo) return ao - bo;

@@ -1,10 +1,12 @@
 (function () {
   const canvas = document.getElementById('bh');
+  const saturnCanvas = document.getElementById('saturn');
   const hit = document.getElementById('hit');
   const toast = document.getElementById('toast');
   const petImg = document.getElementById('pet-img');
   const crumbs = document.getElementById('crumbs');
   let renderer;
+  let saturn;
   let pet;
   let theme = 'blackhole';
   let themeType = 'blackhole';
@@ -24,6 +26,7 @@
   let dragging = false;
   let fileDragActive = false;
   let fileDragWatch = null;
+  let undockDragPending = false;
 
   function isPet() {
     return themeType === 'pet';
@@ -31,6 +34,10 @@
 
   function isBlackhole() {
     return themeType === 'blackhole';
+  }
+
+  function isSaturn() {
+    return themeType === 'saturn';
   }
 
   function showToast(msg, ms = 1600) {
@@ -62,10 +69,201 @@
     }, blackhole ? 1100 : 900);
   }
 
+  /** Shared RAF orbit pool — avoids stacking many rAF loops while sucking. */
+  const orbitPool = [];
+  let orbitRaf = 0;
+  const TEAR_CLASSES = ['', 'tear-a', 'tear-b', 'tear-c'];
+
+  function placeOrbitShred(p, t) {
+    const u = Math.max(0, Math.min(1, t));
+    const ease = u * u * (1.35 - 0.35 * u);
+    const r = p.r0 * Math.exp(-(p.pull || 2.5) * ease);
+    const theta = p.theta0 + p.turns * Math.PI * 2 * ease;
+    const x = p.tx + Math.cos(theta) * r;
+    const y = p.ty + Math.sin(theta) * r;
+    // Violent shear: stretch hard mid-flight, then crush into the horizon
+    const tear = Math.pow(Math.max(0, (ease - 0.08) / 0.92), 0.75);
+    const spin = p.rot0 + p.spin * ease * 360;
+    const crush = 1 - ease * 0.94;
+    const sx = p.size0 * crush * (1 + tear * p.stretchX);
+    const sy = p.size0 * crush * (1 - tear * p.stretchY);
+    const skew = tear * p.skew * 42;
+    const opacity =
+      t < 0 ? 0 : t < 0.04 ? t / 0.04 : Math.max(0, 1 - ease * ease * 1.15);
+    p.el.style.transform =
+      `translate3d(${(x - p.hw).toFixed(1)}px,${(y - p.hh).toFixed(1)}px,0)` +
+      ` rotate(${spin.toFixed(1)}deg) skewX(${skew.toFixed(1)}deg)` +
+      ` scale(${sx.toFixed(3)},${sy.toFixed(3)})`;
+    p.el.style.opacity = opacity.toFixed(2);
+  }
+
+  function pushOrbitShred(opts) {
+    const el = document.createElement('div');
+    const tearCls = opts.tear
+      ? TEAR_CLASSES[Math.floor(Math.random() * TEAR_CLASSES.length)]
+      : '';
+    el.className = tearCls ? `orbit-shred ${tearCls}` : 'orbit-shred';
+    el.style.opacity = '0';
+    crumbs.appendChild(el);
+    const hw = (el.offsetWidth || 14) * 0.5;
+    const hh = (el.offsetHeight || 16) * 0.5;
+    const p = {
+      el,
+      r0: opts.r0,
+      theta0: opts.theta0,
+      turns: opts.turns,
+      duration: opts.duration,
+      born: opts.born,
+      size0: opts.size0,
+      tx: opts.tx,
+      ty: opts.ty,
+      hw,
+      hh,
+      rot0: opts.rot0 ?? Math.random() * 360,
+      spin: opts.spin,
+      stretchX: opts.stretchX,
+      stretchY: opts.stretchY,
+      skew: opts.skew,
+      pull: opts.pull ?? 2.5,
+      cracked: false,
+      canCrack: !!opts.canCrack,
+    };
+    // Park at start pose immediately so delayed pieces never sit at (0,0) / border
+    placeOrbitShred(p, 0);
+    p.el.style.opacity = '0';
+    orbitPool.push(p);
+    return p;
+  }
+
+  function ensureOrbitTick() {
+    if (orbitRaf) return;
+    const tick = (now) => {
+      let alive = 0;
+      for (let i = orbitPool.length - 1; i >= 0; i--) {
+        const p = orbitPool[i];
+        const t = (now - p.born) / p.duration;
+        if (t < 0) {
+          placeOrbitShred(p, 0);
+          p.el.style.opacity = '0';
+          alive += 1;
+          continue;
+        }
+        if (t >= 1) {
+          p.el.remove();
+          orbitPool.splice(i, 1);
+          continue;
+        }
+        alive += 1;
+        placeOrbitShred(p, t);
+
+        // Mid-flight crack: spawn extra scraps for a harsher shred
+        if (p.canCrack && !p.cracked && t > 0.28 && t < 0.55 && orbitPool.length < 22) {
+          p.cracked = true;
+          const room = Math.max(0, 22 - orbitPool.length);
+          const kids = Math.min(room, 2 + Math.floor(Math.random() * 2));
+          for (let k = 0; k < kids; k++) {
+            const kick = (Math.random() - 0.5) * 0.9;
+            pushOrbitShred({
+              tear: true,
+              r0: Math.max(12, p.r0 * (0.55 + Math.random() * 0.35)),
+              theta0: p.theta0 + kick,
+              turns: p.turns * (0.7 + Math.random() * 0.8) * (Math.random() > 0.5 ? 1 : -1),
+              duration: p.duration * (0.45 + Math.random() * 0.25),
+              born: now,
+              size0: p.size0 * (0.45 + Math.random() * 0.35),
+              tx: p.tx,
+              ty: p.ty,
+              spin: (3.5 + Math.random() * 5) * (Math.random() > 0.5 ? 1 : -1),
+              stretchX: 0.9 + Math.random() * 1.2,
+              stretchY: 0.55 + Math.random() * 0.7,
+              skew: (Math.random() - 0.5) * 3.2,
+              pull: 3.2 + Math.random() * 1.2,
+              canCrack: false,
+            });
+          }
+        }
+      }
+      if (alive > 0 || orbitPool.length) {
+        orbitRaf = requestAnimationFrame(tick);
+      } else {
+        orbitRaf = 0;
+      }
+    };
+    orbitRaf = requestAnimationFrame(tick);
+  }
+
+  /** Log-spiral: files rotate, tear apart, and crush into the event horizon / mouth. */
+  function spawnOrbitSuck(count, clientX, clientY) {
+    if (!crumbs) return;
+    // Cap total live shreds so drop + drag never flood the compositor
+    const room = Math.max(0, 16 - orbitPool.length);
+    if (room <= 0) return;
+    const bh = isBlackhole();
+    const perFile = bh ? 4 : 2;
+    const n = Math.min(room, Math.min(14, Math.max(4, (count || 1) * perFile)));
+    const w = window.innerWidth || 1;
+    const h = window.innerHeight || 1;
+    const tx = w * 0.5;
+    const ty = isPet() ? h * 0.42 : h * 0.5;
+    // Prefer a ring around the hole — drop coords are often on the window edge
+    const minDim = Math.min(w, h);
+    const ring = minDim * (bh ? 0.34 : 0.28);
+    let sx = typeof clientX === 'number' ? clientX : tx;
+    let sy = typeof clientY === 'number' ? clientY : ty * 0.55;
+    const fromEdge =
+      sx < w * 0.12 || sx > w * 0.88 || sy < h * 0.12 || sy > h * 0.88;
+    if (bh && (fromEdge || typeof clientX !== 'number')) {
+      const a0 = Math.random() * Math.PI * 2;
+      sx = tx + Math.cos(a0) * ring;
+      sy = ty + Math.sin(a0) * ring;
+    } else {
+      sx = Math.max(minDim * 0.15, Math.min(w - minDim * 0.15, sx));
+      sy = Math.max(minDim * 0.15, Math.min(h - minDim * 0.15, sy));
+    }
+    const now = performance.now();
+
+    for (let i = 0; i < n; i++) {
+      const jitter = (bh ? 10 : 14) + Math.random() * (bh ? 28 : 28);
+      const jAng = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+      const x0 = sx + Math.cos(jAng) * jitter;
+      const y0 = sy + Math.sin(jAng) * jitter;
+      const r0 = Math.max(bh ? minDim * 0.22 : 20, Math.hypot(x0 - tx, y0 - ty));
+      const theta0 = Math.atan2(y0 - ty, x0 - tx);
+      const turns = (bh ? 1.35 : 0.9) + Math.random() * (bh ? 1.6 : 1.1);
+      const dir = Math.random() > 0.18 ? 1 : -1;
+      pushOrbitShred({
+        tear: bh,
+        r0,
+        theta0,
+        turns: turns * dir,
+        duration: (bh ? 640 : 580) + Math.random() * (bh ? 260 : 320),
+        born: now + i * (bh ? 14 : 22),
+        size0: bh ? 1.05 + Math.random() * 0.75 : 0.85 + Math.random() * 0.55,
+        tx,
+        ty,
+        spin: ((bh ? 4.2 : 2.2) + Math.random() * (bh ? 5.5 : 3.4)) * (Math.random() > 0.5 ? 1 : -1),
+        stretchX: bh ? 0.85 + Math.random() * 1.4 : 0.35 + Math.random() * 0.55,
+        stretchY: bh ? 0.55 + Math.random() * 0.85 : 0.25 + Math.random() * 0.4,
+        skew: (Math.random() - 0.5) * (bh ? 3.4 : 2),
+        pull: bh ? 3.4 + Math.random() * 1.1 : 2.5,
+        canCrack: bh && i % 2 === 0,
+      });
+    }
+    ensureOrbitTick();
+  }
+
+  function syncHungerFromSize(size, baseSize) {
+    const s = Number(size) || 360;
+    const b = Number(baseSize) || 360;
+    const grown = Math.max(0, s - b);
+    const hunger = Math.min(1, grown / 280);
+    renderer?.setHunger?.(hunger);
+  }
+
   function startBlackholeDragFx() {
     if (!isBlackhole() || doNotDisturb) return;
+    // Hover only: mild lens pull — shred/spin waits until drop
     renderer?.triggerFeed(0.35);
-    spawnCrumbs(4, { blackhole: true });
     clearInterval(crumbBurstTimer);
     crumbBurstTimer = setInterval(() => {
       if (!document.body.classList.contains('drag-files')) {
@@ -74,8 +272,7 @@
         return;
       }
       renderer?.triggerFeed(0.12);
-      spawnCrumbs(3, { blackhole: true });
-    }, 280);
+    }, 400);
   }
 
   function stopBlackholeDragFx() {
@@ -135,10 +332,17 @@
     setPassthrough(!pointOverHit(lastPointer.x, lastPointer.y));
   }
 
+  function syncSaturnRocks(n) {
+    if (!isSaturn() || !saturn) return;
+    if (Number.isFinite(n) && n >= 0) saturn.setRockCount(n);
+  }
+
   function applyTheme(payload) {
     themeMeta = payload || null;
     theme = payload?.theme || payload?.id || 'blackhole';
-    themeType = payload?.type || (theme === 'blackhole' ? 'blackhole' : 'pet');
+    themeType =
+      payload?.type ||
+      (theme === 'blackhole' ? 'blackhole' : theme === 'saturn' ? 'saturn' : 'pet');
     doNotDisturb = !!payload?.doNotDisturb;
     clickThrough = payload?.clickThrough !== false;
     document.body.dataset.theme = theme;
@@ -148,21 +352,43 @@
       pet?.applyTheme(payload);
     }
     renderer?.setEnabled(isBlackhole());
+    saturn?.setEnabled(isSaturn());
     pet?.setEnabled(isPet());
     if (isPet()) pet?.setDoNotDisturb(doNotDisturb);
     renderer?.setLowPower?.(!!payload?.lowPowerIdle);
+    saturn?.setLowPower?.(!!payload?.lowPowerIdle);
     renderer?.resize();
+    saturn?.resize?.();
     syncPassthrough();
-    // Theme/enable reset can race with media IPC — re-sync listening face
-    if (isPet() && !doNotDisturb && !miniMode) {
-      window.blackHole.getMediaActivity?.()
-        .then((playing) => pet?.setListening?.(!!playing))
+    if (isSaturn()) {
+      window.blackHole.getRecycleBinCount?.()
+        .then((n) => syncSaturnRocks(n))
         .catch(() => {});
     }
+    // Theme/enable reset can race with activity IPC — re-sync faces
+    if (isPet() && !doNotDisturb && !miniMode) syncPetAmbientActivity();
+  }
+
+  function syncPetAmbientActivity() {
+    if (!isPet() || doNotDisturb || miniMode) return;
+    Promise.all([
+      window.blackHole.getMediaActivity?.().catch(() => false),
+      window.blackHole.getTypingActivity?.().catch(() => false),
+    ])
+      .then(([playing, typing]) => {
+        if (!isPet() || doNotDisturb || miniMode) return;
+        // Typing wins over listening
+        pet?.setTyping?.(!!typing);
+        pet?.setListening?.(!!playing);
+      })
+      .catch(() => {});
   }
 
   async function init() {
     renderer = new window.BlackHoleRenderer(canvas);
+    saturn = window.SaturnRenderer && saturnCanvas
+      ? new window.SaturnRenderer(saturnCanvas)
+      : null;
     pet = new window.PetController(petImg);
 
     const cfg = await window.blackHole.getConfig();
@@ -170,14 +396,39 @@
       applyTheme(cfg.themeMeta);
     } else {
       theme = cfg.theme || 'blackhole';
-      themeType = theme === 'blackhole' ? 'blackhole' : 'pet';
+      themeType =
+        theme === 'blackhole' ? 'blackhole' : theme === 'saturn' ? 'saturn' : 'pet';
       document.body.dataset.theme = theme;
       document.body.dataset.themeType = themeType;
       renderer.setEnabled(isBlackhole());
+      saturn?.setEnabled(isSaturn());
       pet.setEnabled(isPet());
     }
 
-    window.blackHole.onSizeChanged(() => renderer?.resize());
+    syncHungerFromSize(cfg.size, cfg.baseSize ?? cfg.size);
+    window.blackHole.onSizeChanged((size) => {
+      renderer?.resize();
+      saturn?.resize?.();
+      window.blackHole.getConfig?.().then((c) => {
+        syncHungerFromSize(size ?? c?.size, c?.baseSize ?? c?.size);
+      }).catch(() => {});
+    });
+    window.blackHole.onPetGrown?.((payload) => {
+      syncHungerFromSize(payload?.size, payload?.baseSize);
+      if (isBlackhole()) renderer?.triggerFeed(0.45);
+      if (isSaturn()) saturn?.triggerFeed?.(0.55);
+    });
+    window.blackHole.onPetShrunk?.((payload) => {
+      syncHungerFromSize(payload?.size, payload?.baseSize);
+      showToast(
+        isPet()
+          ? '消食了，变回原大小'
+          : isSaturn()
+            ? '光环消散，恢复原尺寸'
+            : '引力消退，恢复原尺寸'
+      );
+    });
+    window.blackHole.onRecycleBinCount?.((n) => syncSaturnRocks(n));
     window.blackHole.onThemeChanged((payload) => applyTheme(payload));
     window.blackHole.onDndChanged((on) => {
       doNotDisturb = !!on;
@@ -185,15 +436,12 @@
       if (doNotDisturb) showToast('已进入勿扰 / 睡眠');
       else {
         showToast('已唤醒');
-        if (isPet() && !miniMode) {
-          window.blackHole.getMediaActivity?.()
-            .then((playing) => pet?.setListening?.(!!playing))
-            .catch(() => {});
-        }
+        syncPetAmbientActivity();
       }
     });
     window.blackHole.onLowPowerChanged((on) => {
       renderer?.setLowPower?.(!!on);
+      saturn?.setLowPower?.(!!on);
     });
 
     window.blackHole.onMiniModeChange?.((payload) => {
@@ -203,6 +451,7 @@
       document.body.classList.toggle('mini-mode', miniMode);
       document.body.classList.toggle('mini-left', miniMode && edge === 'left');
       document.body.classList.toggle('mini-flip-assets', miniMode && flipAssets);
+      if (!miniMode) document.body.classList.remove('mini-peeking');
       if (isPet()) {
         pet?.setMiniMode(miniMode);
       }
@@ -210,19 +459,19 @@
     });
 
     window.blackHole.onMiniPetState?.((state) => {
-      if (isPet() && miniMode) pet?.playMiniState(state);
+      // Always forward — pet buffers if miniMode flag hasn't flipped yet
+      if (isPet()) pet?.playMiniState(state);
     });
 
+    window.blackHole.onMiniPeek?.((peeking) => {
+      document.body.classList.toggle('mini-peeking', !!peeking);
+    });
     window.blackHole.onMiniExited?.(() => {
       miniMode = false;
-      document.body.classList.remove('mini-mode', 'mini-left', 'mini-flip-assets');
+      document.body.classList.remove('mini-mode', 'mini-left', 'mini-flip-assets', 'mini-peeking');
       if (isPet()) pet?.setMiniMode(false);
       syncPassthrough();
-      if (isPet() && !doNotDisturb) {
-        window.blackHole.getMediaActivity?.()
-          .then((playing) => pet?.setListening?.(!!playing))
-          .catch(() => {});
-      }
+      syncPetAmbientActivity();
     });
 
     window.blackHole.onTypingActivity?.((on) => {
@@ -233,10 +482,14 @@
       if (!isPet() || doNotDisturb || miniMode) return;
       pet?.setListening?.(!!on);
     });
-    // Catch media already playing before the listener was registered
+    // Catch media/typing already active before the listener was registered
     try {
       const playing = await window.blackHole.getMediaActivity?.();
-      if (isPet() && !doNotDisturb && !miniMode) pet?.setListening?.(!!playing);
+      const typing = await window.blackHole.getTypingActivity?.();
+      if (isPet() && !doNotDisturb && !miniMode) {
+        if (typing) pet?.setTyping?.(true);
+        else pet?.setListening?.(!!playing);
+      }
     } catch (_) {}
 
     let deskFrameBusy = false;
@@ -302,6 +555,7 @@
     if (!pointerDown && !dragging) return;
     const moved = dragMoved;
     const startedMain = mainDragStarted;
+    const wasUndocking = undockDragPending;
     const pid = activePointerId;
     const clientX = e?.clientX;
     const clientY = e?.clientY;
@@ -310,6 +564,7 @@
     activePointerId = null;
     pointerDown = false;
     dragging = false;
+    undockDragPending = false;
     lastScreen = null;
     dragMoved = false;
     mainDragStarted = false;
@@ -321,19 +576,16 @@
     }
 
     document.body.classList.remove('window-dragging');
-    if (miniMode) {
-      // Click OR failed drag attempt both undock — previously moving >3px
-      // blocked exit and also blocked window drag → "stuck after update"
-      if (!cancel) {
-        window.blackHole.exitMiniMode?.();
-      }
+    // Click to leave mini (no drag). Skip if a drag-undock is already in flight.
+    if (miniMode && !wasUndocking && !moved) {
+      if (!cancel) window.blackHole.exitMiniMode?.();
       syncPassthrough(clientX, clientY);
       return;
     }
     if (startedMain) {
       window.blackHole.dragEnd();
       if (moved) pet?.onWindowDragEnd();
-    } else if (!cancel && !doNotDisturb) {
+    } else if (!cancel && !doNotDisturb && !miniMode && !wasUndocking) {
       pet?.poke();
     }
 
@@ -351,11 +603,17 @@
 
   hit.addEventListener('mouseenter', () => {
     setPassthrough(false);
-    if (miniMode && !dragging) window.blackHole.miniPeekIn?.();
+    if (miniMode && !dragging) {
+      document.body.classList.add('mini-peeking');
+      window.blackHole.miniPeekIn?.();
+    }
   });
   hit.addEventListener('mouseleave', (e) => {
     if (dragging || pointerDown || contextMenuOpen || fileDragActive) return;
-    if (miniMode) window.blackHole.miniPeekOut?.();
+    if (miniMode) {
+      document.body.classList.remove('mini-peeking');
+      window.blackHole.miniPeekOut?.();
+    }
     // Alt-tab / focus change fabricates mouseleave while cursor is still on us
     if (!document.hasFocus()) return;
     syncPassthrough(e.clientX, e.clientY);
@@ -376,6 +634,7 @@
       if (next !== current) {
         await window.blackHole.setSize(next);
         renderer?.resize();
+        saturn?.resize?.();
         setPassthrough(false);
       }
     },
@@ -427,19 +686,39 @@
     const dist = Math.hypot(dx, dy);
     if (!dragMoved && dist <= 3) return;
 
-    // Mini: drag out undocks immediately, then continues as a normal window drag
-    if (miniMode) {
+    // Mini: wait for undock to finish in main, then start window drag
+    if (miniMode || undockDragPending) {
+      if (undockDragPending) return;
       dragMoved = true;
-      window.blackHole.exitMiniModeImmediate?.();
-      miniMode = false;
-      document.body.classList.remove('mini-mode', 'mini-left', 'mini-flip-assets');
-      pet?.setMiniMode?.(false);
-      mainDragStarted = true;
-      document.body.classList.add('window-dragging');
-      window.blackHole.dragStart();
-      pet?.onWindowDragStart();
-      window.blackHole.dragMove();
-      lastScreen = { x: e.screenX, y: e.screenY };
+      undockDragPending = true;
+      document.body.classList.remove('mini-peeking');
+      document.body.classList.add('mini-undocking');
+      const sx = e.screenX;
+      const sy = e.screenY;
+      void (async () => {
+        try {
+          await window.blackHole.exitMiniModeImmediate?.();
+        } catch (_) {}
+        if (!pointerDown) {
+          undockDragPending = false;
+          document.body.classList.remove('mini-undocking');
+          return;
+        }
+        miniMode = false;
+        document.body.classList.remove('mini-mode', 'mini-left', 'mini-flip-assets');
+        pet?.setMiniMode?.(false);
+        mainDragStarted = true;
+        document.body.classList.add('window-dragging');
+        window.blackHole.dragStart();
+        pet?.onWindowDragStart();
+        window.blackHole.dragMove();
+        lastScreen = { x: sx, y: sy };
+        undockDragPending = false;
+        clearTimeout(endPointerDrag._undockFx);
+        endPointerDrag._undockFx = setTimeout(() => {
+          document.body.classList.remove('mini-undocking');
+        }, 320);
+      })();
       return;
     }
 
@@ -513,6 +792,7 @@
     if (doNotDisturb) return;
     if (first) {
       if (isBlackhole()) startBlackholeDragFx();
+      if (isSaturn()) saturn?.triggerFeed?.(0.35);
       if (isPet() && !feeding) pet?.beginFeedExpect();
     }
   }
@@ -535,9 +815,11 @@
     try {
       e.dataTransfer.dropEffect = 'move';
     } catch (_) {}
+    if (e.clientX != null) lastPointer = { x: e.clientX, y: e.clientY };
     setFileDragActive(e);
     armFileDragWatch();
     if (!doNotDisturb && isBlackhole()) renderer?.triggerFeed(0.06);
+    if (!doNotDisturb && isSaturn()) saturn?.triggerFeed?.(0.05);
   }
 
   function onFileDragLeave(e) {
@@ -593,15 +875,26 @@
     feeding = true;
     document.body.classList.add('feeding');
     setPassthrough(false);
-    spawnCrumbs(paths.length, { blackhole: isBlackhole() });
+    if (isSaturn()) {
+      saturn?.ingest(paths.length, e.clientX, e.clientY);
+    } else if (isBlackhole()) {
+      spawnOrbitSuck(paths.length, e.clientX, e.clientY);
+      renderer?.triggerFeed(1.6);
+    } else {
+      spawnOrbitSuck(paths.length, e.clientX, e.clientY);
+      spawnCrumbs(Math.min(4, paths.length), { blackhole: false });
+    }
 
-    if (isBlackhole()) renderer?.triggerFeed(1.6);
     if (isPet()) pet?.startEating();
 
     const eatLabel =
       themeMeta?.eatLabel ||
-      (theme === 'calico' ? '小猫' : theme === 'danchen' ? '丹童' : '宠物');
-    const eatingLabel = isPet() ? `${eatLabel}吃掉了` : '正在吸入';
+      (theme === 'calico' ? '小猫' : theme === 'danchen' ? '丹童' : theme === 'saturn' ? '土星' : '宠物');
+    const eatingLabel = isPet()
+      ? `${eatLabel}吃掉了`
+      : isSaturn()
+        ? '正在镶进光环'
+        : '正在吸入';
     showToast(`${eatingLabel} ${paths.length} 项…（大文件/文件夹可能需较久）`, 8000);
 
     try {
@@ -612,12 +905,14 @@
         if (isPet()) {
           const custom = themeMeta?.toastOk;
           showToast(custom || (ok === 1 ? `${eatLabel}～进回收站了` : `吃掉 ${ok} 项`));
+        } else if (isSaturn()) {
+          showToast(themeMeta?.toastOk || (ok === 1 ? '已镶进光环' : `${ok} 块碎石镶进光环`));
+          saturn?.triggerFeed?.(0.8);
         } else {
           showToast(ok === 1 ? '已送入回收站' : `已送入回收站（${ok}）`);
         }
         if (isBlackhole()) {
           renderer?.triggerFeed(1.0);
-          spawnCrumbs(ok, { blackhole: true });
         }
         if (isPet()) pet?.finishEating(true);
       } else {
@@ -625,7 +920,13 @@
         if (isPet()) pet?.finishEating(false);
       }
     } catch (err) {
-      showToast(isPet() ? themeMeta?.toastFail || '吃不下…' : '吸入失败');
+      showToast(
+        isPet()
+          ? themeMeta?.toastFail || '吃不下…'
+          : isSaturn()
+            ? themeMeta?.toastFail || '没接住…'
+            : '吸入失败'
+      );
       console.error(err);
       if (isPet()) pet?.finishEating(false);
     } finally {

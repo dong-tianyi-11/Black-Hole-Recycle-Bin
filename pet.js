@@ -48,8 +48,10 @@
       this._chewTimer = null;
       this._chewIdx = 0;
       this._miniMode = false;
+      this._pendingMiniState = null;
       this._typing = false;
       this._listening = false;
+      this._windowDragging = false;
       this.assetBase = '';
       this.assetMap = {};
       this.timings = {};
@@ -153,6 +155,10 @@
         this._busyUntil = 0;
         this._lastPointer = Date.now();
         // Keep typing/listening flags — monitors own them; just restore the right face
+        if (this._miniMode) {
+          this.play(this._dnd ? 'miniSleep' : 'miniIdle', { force: true });
+          return;
+        }
         if (this._dnd) {
           this.play('sleeping', { force: true });
         } else if (this._typing) {
@@ -202,45 +208,75 @@
         this.later(() => {
           this.locked = false;
           if (!this.enabled) return;
-          if (this._miniMode) {
-            this.play(this._dnd ? 'miniSleep' : 'miniIdle', { force: true });
-          } else {
-            this.play('idle');
-          }
+          this.resumeAmbient();
         }, ms);
       }
     }
 
+    /** Return to the correct ambient face after a lock / interruption. */
+    resumeAmbient() {
+      if (!this.enabled) return;
+      this.locked = false;
+      this._busyUntil = 0;
+      if (this._miniMode) {
+        this.play(this._dnd ? 'miniSleep' : 'miniIdle', { force: true });
+        return;
+      }
+      if (this._dnd) {
+        this.play('sleeping', { force: true });
+        return;
+      }
+      if (this._feeding || this._windowDragging) return;
+      if (this._typing && this._resolveFile('working')) {
+        this.play('working', { force: true });
+        this.scheduleCycle();
+        this.scheduleSleepWatch();
+        return;
+      }
+      if (this._listening && this._resolveFile('listening')) {
+        this.play('listening', { force: true });
+        this.scheduleCycle();
+        this.scheduleSleepWatch();
+        return;
+      }
+      this.play('idle', { force: true });
+      this.scheduleCycle();
+      this.scheduleSleepWatch();
+    }
+
     setMiniMode(on) {
-      this._miniMode = !!on;
+      const next = !!on;
+      const was = this._miniMode;
+      this._miniMode = next;
       if (!this.enabled) return;
       if (this._miniMode) {
         this.clearTimers();
         this.locked = false;
         this._feeding = false;
-        this._typing = false;
-        this._listening = false;
-        // Visual state applied via playMiniState from main process
-      } else {
+        // Keep _typing / _listening flags — restore on exit via resumeAmbient
+        // Show a mini face immediately so idle/working isn't cropped as "broken mini"
+        const pending = this._pendingMiniState;
+        this._pendingMiniState = null;
+        if (pending) {
+          this.playMiniState(pending);
+        } else {
+          this.play(this._dnd ? 'miniSleep' : 'miniIdle', { force: true });
+        }
+      } else if (was) {
         this.locked = false;
         this.clearTimers();
-        if (this._dnd) {
-          this.play('sleeping', { force: true });
-        } else if (this._listening && this._resolveFile('listening')) {
-          this.play('listening', { force: true });
-          this.scheduleCycle();
-          this.scheduleSleepWatch();
-        } else {
-          this.play('idle', { force: true });
-          this.scheduleCycle();
-          this.scheduleSleepWatch();
-        }
+        this.resumeAmbient();
       }
     }
 
     playMiniState(key) {
-      if (!this.enabled || !this._miniMode) return;
+      if (!this.enabled) return;
       const k = key || 'miniIdle';
+      // Buffer if mini-mode IPC hasn't landed yet (race with mini-pet-state)
+      if (!this._miniMode) {
+        this._pendingMiniState = k;
+        return;
+      }
       if (!this._resolveFile(k) && !this._resolveFile('miniIdle') && !this._resolveFile('idle')) {
         return;
       }
@@ -319,20 +355,15 @@
         this.locked = false;
         this._busyUntil = 0;
         this.play('working', { force: true });
+        // Keep cycle alive so unlock/idle can't leave typing stuck off
+        this.scheduleCycle();
+        this.scheduleSleepWatch();
         return;
       }
 
       // Stopped typing → music listening takes over if active
-      if (this.state === 'working') {
-        this.locked = false;
-        this._busyUntil = 0;
-        if (this._listening && this._resolveFile('listening')) {
-          this.play('listening', { force: true });
-        } else {
-          this.play('idle', { force: true });
-          this.scheduleCycle();
-        }
-        this.scheduleSleepWatch();
+      if (this.state === 'working' || this.state === 'idle') {
+        this.resumeAmbient();
       }
     }
 
@@ -345,8 +376,8 @@
       this._listening = next;
       if (!this.enabled || this._dnd || this._miniMode || this._feeding) return;
       if (this._windowDragging) return;
-      // Only yield to 炼丹 while actively on working — sticky _typing must not block music
-      if (this._typing && this.state === 'working') return;
+      // Typing always wins over music face
+      if (this._typing) return;
       if (EAT_KEYS.includes(this.state) || this.state === 'eatOpen') return;
       if (!this._resolveFile('listening')) return;
 
@@ -369,11 +400,7 @@
       }
 
       if (changed && this.state === 'listening') {
-        this.locked = false;
-        this._busyUntil = 0;
-        this.play('idle', { force: true });
-        this.scheduleCycle();
-        this.scheduleSleepWatch();
+        this.resumeAmbient();
       }
     }
 
@@ -420,6 +447,11 @@
     scheduleSleepWatch() {
       const tick = () => {
         if (!this.enabled || this._dnd || this._miniMode) {
+          this.later(tick, 4000);
+          return;
+        }
+        // Never sleep/yawn over typing or listening faces
+        if (this._typing || this._listening) {
           this.later(tick, 4000);
           return;
         }
@@ -478,14 +510,9 @@
       const w = this.timings.waking || 2000;
       if (this._resolveFile('waking') && this.assetMap.waking) {
         this.play('waking', { lock: true, holdMs: w });
-        this.later(() => {
-          this.scheduleCycle();
-          this.scheduleSleepWatch();
-        }, w + 50);
+        // lock unlock → resumeAmbient (typing/listening aware)
       } else {
-        this.play('idle', { force: true });
-        this.scheduleCycle();
-        this.scheduleSleepWatch();
+        this.resumeAmbient();
       }
     }
 
@@ -498,13 +525,11 @@
         this._feeding = false;
         this._typing = false;
         this._listening = false;
-        this.play('sleeping', { force: true });
+        this.play(this._miniMode ? 'miniSleep' : 'sleeping', { force: true });
       } else {
         this.notePointer();
         this.locked = false;
-        this.play('idle', { force: true });
-        this.scheduleCycle();
-        this.scheduleSleepWatch();
+        this.resumeAmbient();
       }
     }
 
@@ -543,11 +568,7 @@
       this._windowDragging = false;
       this.locked = false;
       this._busyUntil = 0;
-      this.play('idle', { force: true });
-      if (!this._dnd && !this._feeding) {
-        this.scheduleCycle();
-        this.scheduleSleepWatch();
-      }
+      this.resumeAmbient();
     }
 
     beginFeedExpect() {
@@ -568,11 +589,7 @@
       this._busyUntil = 0;
       this.stopChewLoop();
       this.img?.classList.remove('pet-eating-open', 'pet-chewing');
-      if (EAT_KEYS.includes(this.state) || this.state === 'eatOpen') {
-        this.play('idle', { force: true });
-      }
-      this.scheduleCycle();
-      this.scheduleSleepWatch();
+      this.resumeAmbient();
     }
 
     startEating() {
@@ -602,16 +619,11 @@
       this._busyUntil = 0;
 
       if (ok) {
-        this.play('idle', { force: true });
-        this.scheduleCycle();
-        this.scheduleSleepWatch();
+        this.resumeAmbient();
       } else {
         const errMs = this.timings.error || 3500;
         this.play('error', { lock: true, holdMs: errMs, force: true });
-        this.later(() => {
-          this.scheduleCycle();
-          this.scheduleSleepWatch();
-        }, errMs + 50);
+        // lock unlock → resumeAmbient
       }
     }
   }

@@ -8,7 +8,7 @@ let plateDisplayBounds = null;
 /** Bumps whenever the full-screen plate is replaced — used to skip redundant crops. */
 let plateGeneration = 0;
 
-const PAD_RATIO = 0.38;
+const PAD_RATIO = 0.42;
 
 function pickSource(sources, display) {
   const displayId = String(display.id);
@@ -106,8 +106,9 @@ function cropPlateForWindow(win) {
 
 /**
  * Refresh desktop underlay WITHOUT hiding the window.
- * Relies on BrowserWindow.setContentProtection(true) so Windows
- * excludes this HWND from capture (desktop shows through).
+ * Relies on content protection while on blackhole theme (see
+ * applyContentProtection in main.js) so Windows excludes this HWND
+ * from capture and the desktop shows through.
  */
 async function refreshPlateLive(win) {
   if (!win || win.isDestroyed() || capturing) return false;

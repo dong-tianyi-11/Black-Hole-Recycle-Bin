@@ -24,6 +24,7 @@ const { createMiniController } = require('./mini');
 const aiSecrets = require('./ai-secrets');
 const keyboardActivity = require('./keyboard-activity');
 const mediaActivity = require('./media-activity');
+const { createRecycleBinWatcher } = require('./recycle-bin-watch');
 
 app.setPath('userData', path.join(app.getPath('appData'), 'black-hole-recycle-bin'));
 
@@ -35,6 +36,8 @@ const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
 
 const DEFAULT_CONFIG = {
   size: 360,
+  // baseSize is set on first ensureBaseSize() so existing installs
+  // don't treat a large size as "fed growth"
   x: null,
   y: null,
   alwaysOnTop: true,
@@ -43,6 +46,9 @@ const DEFAULT_CONFIG = {
   doNotDisturb: false,
   lowPowerIdle: true,
   clickThrough: true,
+  // When true: window appears in EV/OBS/etc. When false + blackhole:
+  // exclude from capture so desktop warp can refresh without self-image.
+  allowScreenCapture: false,
   themePositions: {},
   autoUpdateCheck: true,
   miniMode: false,
@@ -76,6 +82,12 @@ let updater = null;
 let mini = null;
 let aiSettingsWin = null;
 let sizeSettingsWin = null;
+let recycleBinWatcher = null;
+let sizeAnimTimer = null;
+
+const GROW_PER_ITEM = 40;
+const SIZE_MIN = 160;
+const SIZE_MAX = 720;
 
 function getUpdater() {
   if (!updater) {
@@ -129,6 +141,11 @@ function getMini() {
           });
         }
       },
+      sendMiniPeek: (peeking) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('mini-peek', !!peeking);
+        }
+      },
       applyMiniPetState: (state) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('mini-pet-state', state || 'miniIdle');
@@ -144,6 +161,8 @@ function getMini() {
       getTheme: () => themeLoader.loadTheme(currentThemeId()),
       getMiniEnterDurationMs: () => {
         const t = themeLoader.loadTheme(currentThemeId());
+        // Canvas themes have no miniEnter clip — keep transition short so drag isn't blocked
+        if (t?.type === 'blackhole' || t?.type === 'saturn') return 180;
         return t?.timings?.miniEnter || 1200;
       },
     });
@@ -188,19 +207,51 @@ function currentThemeId() {
   return loadConfig().theme || 'blackhole';
 }
 
+/**
+ * Content protection hides the HWND from screen recorders (EV / OBS / Win+G).
+ * Needed only for blackhole desktop-warp refresh; pets/saturn stay capturable.
+ * Tray「录屏可见」forces protection off for every theme.
+ */
+function wantContentProtection() {
+  if (loadConfig().allowScreenCapture) return false;
+  return isBlackholeTheme();
+}
+
+function applyContentProtection() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const on = wantContentProtection();
+  try {
+    mainWindow.setContentProtection(on);
+  } catch (err) {
+    console.warn('[capture] setContentProtection failed', err);
+  }
+}
+
+function setAllowScreenCapture(on) {
+  saveConfig({ allowScreenCapture: !!on });
+  applyContentProtection();
+  rebuildTrayMenu();
+}
+
 function isBlackholeTheme(themeId) {
   const t = themeLoader.loadTheme(themeId || currentThemeId());
   return !t || t.type === 'blackhole';
 }
 
+function isSaturnTheme(themeId) {
+  const t = themeLoader.loadTheme(themeId || currentThemeId());
+  return !!(t && t.type === 'saturn');
+}
+
 function themeAspect(themeId) {
   const t = themeLoader.loadTheme(themeId || currentThemeId());
   if (!t || t.type === 'blackhole') return 1;
+  if (t.type === 'saturn') return t.aspect > 0 ? t.aspect : 0.72;
   return t.aspect > 0 ? t.aspect : 200 / 266;
 }
 
 function boundsForSize(size, themeId, cx, cy) {
-  const scale = isBlackholeTheme(themeId) ? 1.15 : 1;
+  const scale = isBlackholeTheme(themeId) ? 1.15 : isSaturnTheme(themeId) ? 1.25 : 1;
   const w = Math.round(size * scale);
   const h = Math.round(size * scale * themeAspect(themeId));
   return {
@@ -490,40 +541,201 @@ function scheduleQuietPlateRefresh(delay = 380) {
   }, delay);
 }
 
-function setWindowSize(size) {
-  if (!mainWindow) return;
-  if (userDragging) return; // don't fight an active drag
+function clampPetSize(size) {
+  return Math.round(Math.max(SIZE_MIN, Math.min(SIZE_MAX, size)));
+}
+
+function ensureBaseSize(cfg = loadConfig()) {
+  if (cfg.baseSize == null || !Number.isFinite(Number(cfg.baseSize))) {
+    const clamped = clampPetSize(cfg.size || 360);
+    saveConfig({ baseSize: clamped });
+    return clamped;
+  }
+  const clamped = clampPetSize(cfg.baseSize);
+  if (clamped !== cfg.baseSize) saveConfig({ baseSize: clamped });
+  return clamped;
+}
+
+function applyWindowSize(
+  size,
+  { anchor = 'topleft', updateBase = false, quiet = false, center = null, persist = true } = {}
+) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (userDragging) return;
   if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
-  noteActivity();
-  const clamped = Math.round(Math.max(160, Math.min(720, size)));
+  const clamped = clampPetSize(size);
   const theme = currentThemeId();
-  const [x, y] = mainWindow.getPosition();
+  const bounds = mainWindow.getBounds();
   const dims = boundsForSize(clamped, theme, 0, 0);
+  let x = bounds.x;
+  let y = bounds.y;
+  if (anchor === 'center') {
+    // Prefer a locked center (grow anim) so getBounds drift doesn't walk the window
+    const cx = Number.isFinite(center?.x) ? center.x : bounds.x + bounds.width / 2;
+    const cy = Number.isFinite(center?.y) ? center.y : bounds.y + bounds.height / 2;
+    x = Math.round(cx - dims.width / 2);
+    y = Math.round(cy - dims.height / 2);
+  }
+
+  // Clamp with full size in one shot — never setPosition alone (transparent win jump)
+  const pos = clampToDisplays(screen, x, y, dims.width, dims.height);
+  x = pos.x;
+  y = pos.y;
 
   userResizing = true;
   isMoving = true;
   clearTimeout(moveCropTimer);
   try {
-    // Keep the same top-left; do not re-center / clamp-nudge the window away
     mainWindow.setBounds({
       x,
       y,
       width: dims.width,
       height: dims.height,
     });
-    saveConfig({ size: clamped, x, y });
-    saveThemePosition(theme);
+    if (persist) {
+      const patch = { size: clamped, x, y };
+      if (updateBase) patch.baseSize = clamped;
+      saveConfig(patch);
+      saveThemePosition(theme);
+    }
     mainWindow.webContents.send('size-changed', clamped);
-    pushCropFrame(true);
+    if (!quiet) pushCropFrame(true);
   } finally {
-    setTimeout(() => {
+    if (!quiet) {
+      setTimeout(() => {
+        userResizing = false;
+        isMoving = false;
+        if (isBlackholeTheme() && !loadConfig().doNotDisturb) {
+          scheduleCropAfterMove();
+        }
+      }, 120);
+    }
+  }
+}
+
+function setWindowSize(size, { anchor = 'topleft', updateBase = false, animate = false } = {}) {
+  if (!mainWindow) return;
+  if (userDragging) return;
+  if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
+  noteActivity();
+  const clamped = clampPetSize(size);
+  if (animate) {
+    animateWindowSize(clamped, { anchor, updateBase });
+    return;
+  }
+  applyWindowSize(clamped, { anchor, updateBase, quiet: false });
+}
+
+function stopSizeAnim() {
+  if (sizeAnimTimer) {
+    clearInterval(sizeAnimTimer);
+    sizeAnimTimer = null;
+  }
+}
+
+function animateWindowSize(target, { anchor = 'center', updateBase = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (userDragging) return;
+  if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
+  stopSizeAnim();
+  noteActivity();
+  const from = clampPetSize(loadConfig().size || 360);
+  const to = clampPetSize(target);
+  if (from === to) {
+    if (updateBase) saveConfig({ baseSize: to });
+    return;
+  }
+  // Lock visual center for the whole tween — recalculating from getBounds each
+  // frame makes the hole slide first, then appear to grow.
+  const start = mainWindow.getBounds();
+  const lockedCenter =
+    anchor === 'center'
+      ? { x: start.x + start.width / 2, y: start.y + start.height / 2 }
+      : null;
+  const steps = 14;
+  let i = 0;
+  userResizing = true;
+  isMoving = true;
+  sizeAnimTimer = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || userDragging) {
+      stopSizeAnim();
       userResizing = false;
       isMoving = false;
-      if (isBlackholeTheme() && !loadConfig().doNotDisturb) {
-        scheduleCropAfterMove();
-      }
-    }, 120);
-  }
+      return;
+    }
+    i += 1;
+    const t = i / steps;
+    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const next = Math.round(from + (to - from) * ease);
+    const done = i >= steps;
+    applyWindowSize(done ? to : next, {
+      anchor,
+      updateBase: done ? updateBase : false,
+      quiet: true,
+      center: lockedCenter,
+      persist: done,
+    });
+    if (done) {
+      stopSizeAnim();
+      pushCropFrame(true);
+      // Keep userResizing until moved/resize events from the last setBounds settle
+      setTimeout(() => {
+        userResizing = false;
+        isMoving = false;
+        if (isBlackholeTheme() && !loadConfig().doNotDisturb) {
+          scheduleCropAfterMove();
+        }
+      }, 160);
+    }
+  }, 28);
+}
+
+function growFromFeed(itemCount) {
+  if (!mainWindow || getMini().getMiniMode()) return;
+  const cfg = loadConfig();
+  ensureBaseSize(cfg);
+  const current = clampPetSize(cfg.size || 360);
+  const bump = Math.max(1, itemCount | 0) * GROW_PER_ITEM;
+  const next = clampPetSize(current + bump);
+  if (next <= current) return;
+  animateWindowSize(next, { anchor: 'center', updateBase: false });
+  try {
+    mainWindow.webContents.send('pet-grown', {
+      size: next,
+      baseSize: ensureBaseSize(),
+      gained: next - current,
+    });
+  } catch (_) {}
+}
+
+function shrinkToBaseSize({ reason = 'manual' } = {}) {
+  if (!mainWindow || getMini().getMiniMode()) return false;
+  const cfg = loadConfig();
+  const base = ensureBaseSize(cfg);
+  const current = clampPetSize(cfg.size || 360);
+  if (current <= base) return false;
+  animateWindowSize(base, { anchor: 'center', updateBase: false });
+  try {
+    mainWindow.webContents.send('pet-shrunk', { size: base, baseSize: base, reason });
+  } catch (_) {}
+  return true;
+}
+
+function startRecycleBinWatcher() {
+  if (recycleBinWatcher) return;
+  recycleBinWatcher = createRecycleBinWatcher({
+    onEmpty: () => {
+      shrinkToBaseSize({ reason: 'empty-bin' });
+      rebuildTrayMenu();
+    },
+    onCount: (n) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      try {
+        mainWindow.webContents.send('recycle-bin-count', n);
+      } catch (_) {}
+    },
+  });
+  recycleBinWatcher.start();
 }
 
 function sendMediaActivity(on) {
@@ -532,6 +744,15 @@ function sendMediaActivity(on) {
   if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
   try {
     mainWindow.webContents.send('media-activity', !!on);
+  } catch (_) {}
+}
+
+function sendTypingActivity(on) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (loadConfig().doNotDisturb) return;
+  if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
+  try {
+    mainWindow.webContents.send('typing-activity', !!on);
   } catch (_) {}
 }
 
@@ -556,27 +777,25 @@ function syncTypingKeyboardMonitor() {
     return;
   }
   keyboardActivity.start((on) => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (loadConfig().doNotDisturb) return;
-    if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
-    try {
-      mainWindow.webContents.send('typing-activity', !!on);
-    } catch (_) {}
+    sendTypingActivity(on);
   });
   mediaActivity.start((on) => {
     sendMediaActivity(on);
   });
   // Catch-up: probe may have flipped before BrowserWindow was ready
   sendMediaActivity(mediaActivity.isPlaying());
+  sendTypingActivity(keyboardActivity.isTyping());
   setTimeout(() => {
     mediaActivity.notify?.();
     sendMediaActivity(mediaActivity.isPlaying());
+    sendTypingActivity(keyboardActivity.isTyping());
   }, 800);
   setTimeout(() => {
     mediaActivity.notify?.();
     sendMediaActivity(mediaActivity.isPlaying());
+    sendTypingActivity(keyboardActivity.isTyping());
   }, 2200);
-  // Periodic resync — recovers missed IPC / theme-enable races while music plays
+  // Periodic resync — recovers missed IPC / theme-enable races
   if (syncTypingKeyboardMonitor._mediaSync) {
     clearInterval(syncTypingKeyboardMonitor._mediaSync);
   }
@@ -585,6 +804,7 @@ function syncTypingKeyboardMonitor() {
     const themeNow = themeLoader.loadTheme(currentThemeId());
     if (!themeNow || themeNow.type !== 'pet') return;
     sendMediaActivity(mediaActivity.isPlaying());
+    sendTypingActivity(keyboardActivity.isTyping());
   }, 2000);
   if (syncTypingKeyboardMonitor._mediaSync.unref) {
     syncTypingKeyboardMonitor._mediaSync.unref();
@@ -620,6 +840,7 @@ function setTheme(themeId) {
 
   sendThemePayload(theme.id);
   syncTypingKeyboardMonitor();
+  applyContentProtection();
 
   if (theme.type === 'blackhole' && !loadConfig().doNotDisturb) {
     quietRefreshPlate();
@@ -765,13 +986,9 @@ async function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   mainWindow.setAlwaysOnTop(config.alwaysOnTop !== false, 'screen-saver');
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  // Exclude this window from screen capture so desktop underlay can refresh
-  // without hide/opacity flash (WDA_EXCLUDEFROMCAPTURE on Win10 2004+).
-  try {
-    mainWindow.setContentProtection(true);
-  } catch (err) {
-    console.warn('[capture] setContentProtection failed', err);
-  }
+  // Blackhole only: exclude from capture so desktop underlay can refresh
+  // without hide/opacity flash. Pets/saturn stay visible to EV/OBS.
+  applyContentProtection();
   const clearChrome = () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.setBackgroundColor('#00000000');
@@ -862,17 +1079,13 @@ async function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
   mainWindow.once('ready-to-show', async () => {
-    try {
-      mainWindow.setContentProtection(true);
-    } catch (_) {}
+    applyContentProtection();
     if (isBlackholeTheme() && !loadConfig().doNotDisturb) {
       const disp = screen.getDisplayMatching(mainWindow.getBounds());
       await refreshDesktopPlate(disp);
     }
     mainWindow.show();
-    try {
-      mainWindow.setContentProtection(true);
-    } catch (_) {}
+    applyContentProtection();
     setClickThroughEnabled(true);
     startClickThroughWatch();
     sendThemePayload();
@@ -891,13 +1104,14 @@ async function createWindow() {
     if (!mainWindow) return;
     isMoving = true;
     // Active user drag already clamps + will save on drag-end
-    if (userDragging || userResizing) return;
+    if (userDragging || userResizing || sizeAnimTimer) return;
     if (getMini().getMiniMode() || getMini().getMiniTransitioning()) return;
     noteActivity();
-    const [wx, wy] = mainWindow.getPosition();
-    const pos = clampMainWindow(wx, wy);
-    if (pos.x !== wx || pos.y !== wy) {
-      mainWindow.setPosition(pos.x, pos.y);
+    const b = mainWindow.getBounds();
+    const pos = clampToDisplays(screen, b.x, b.y, b.width, b.height);
+    // Always setBounds (size+pos) — setPosition alone makes transparent windows jump/grow
+    if (pos.x !== b.x || pos.y !== b.y) {
+      mainWindow.setBounds({ x: pos.x, y: pos.y, width: b.width, height: b.height });
     }
     saveThemePosition();
     scheduleCropAfterMove();
@@ -1249,6 +1463,11 @@ function commonMenuTail() {
       click: () => setClickThroughPref(!(loadConfig().clickThrough !== false)),
     },
     {
+      // Off = blackhole excluded from capture (cleaner warp). On = EV/OBS can record pet.
+      label: config.allowScreenCapture ? '✓ 录屏可见' : '录屏可见',
+      click: () => setAllowScreenCapture(!loadConfig().allowScreenCapture),
+    },
+    {
       label: config.autoUpdateCheck !== false ? '✓ 自动检查更新' : '自动检查更新',
       click: () => getUpdater().setAutoUpdateCheck(!(loadConfig().autoUpdateCheck !== false)),
     },
@@ -1259,6 +1478,14 @@ function commonMenuTail() {
     },
     getUpdater().getUpdateMenuItem(),
     { type: 'separator' },
+    {
+      label: '缩小到原尺寸',
+      enabled: !inMini && clampPetSize(config.size || 360) > ensureBaseSize(config),
+      click: () => {
+        shrinkToBaseSize({ reason: 'manual' });
+        rebuildTrayMenu();
+      },
+    },
     {
       label: '调整尺寸…',
       enabled: !inMini,
@@ -1289,6 +1516,13 @@ function rebuildTrayMenu() {
 
 function registerIpc() {
   ipcMain.handle('get-media-activity', () => mediaPlayingNow());
+  ipcMain.handle('get-typing-activity', () => {
+    try {
+      return !!keyboardActivity.isTyping?.();
+    } catch (_) {
+      return false;
+    }
+  });
 
   ipcMain.handle('get-config', () => {
     const cfg = loadConfig();
@@ -1341,7 +1575,8 @@ function registerIpc() {
 
   ipcMain.handle('size-settings-get', () => loadConfig().size || 360);
   ipcMain.handle('size-settings-apply', (_e, size) => {
-    setWindowSize(size);
+    stopSizeAnim();
+    setWindowSize(size, { updateBase: true, anchor: 'center' });
     return loadConfig().size;
   });
   ipcMain.on('size-settings-close', () => {
@@ -1349,8 +1584,15 @@ function registerIpc() {
   });
 
   ipcMain.handle('set-size', (_e, size) => {
-    setWindowSize(size);
+    stopSizeAnim();
+    setWindowSize(size, { updateBase: true, anchor: 'center' });
     return loadConfig().size;
+  });
+
+  ipcMain.handle('shrink-to-base', () => {
+    const did = shrinkToBaseSize({ reason: 'manual' });
+    rebuildTrayMenu();
+    return { ok: did, size: loadConfig().size, baseSize: ensureBaseSize() };
   });
 
   ipcMain.handle('set-theme', (_e, theme) => {
@@ -1436,8 +1678,8 @@ function registerIpc() {
     getMini().exitMiniMode();
   });
 
-  ipcMain.on('exit-mini-mode-immediate', () => {
-    getMini().exitMiniModeImmediate();
+  ipcMain.handle('exit-mini-mode-immediate', () => {
+    return !!getMini().exitMiniModeImmediate();
   });
 
   ipcMain.on('mini-peek-in', () => {
@@ -1456,18 +1698,53 @@ function registerIpc() {
     noteActivity();
     capturePaused = true;
     try {
-      return await recyclePaths(paths);
+      const result = await recyclePaths(paths);
+      const ok = (result?.results || []).filter((r) => r.ok).length;
+      if (ok > 0) {
+        recycleBinWatcher?.markFed?.();
+        // Grow after suck FX; refresh plate after grow so capture doesn't shove the window
+        setTimeout(() => {
+          growFromFeed(ok);
+          rebuildTrayMenu();
+        }, 420);
+        setTimeout(() => {
+          recycleBinWatcher?.refresh?.();
+        }, 700);
+      }
+      return result;
     } finally {
       setTimeout(() => {
         capturePaused = false;
-        if (isBlackholeTheme() && !loadConfig().doNotDisturb) quietRefreshPlate();
-      }, 400);
+        // Wait until grow anim has started/settled before recapturing the desk
+        if (isBlackholeTheme() && !loadConfig().doNotDisturb) {
+          setTimeout(() => quietRefreshPlate(), 520);
+        }
+      }, 280);
+    }
+  });
+
+  ipcMain.handle('get-recycle-bin-count', async () => {
+    try {
+      const { queryRecycleCount } = require('./recycle-bin-watch');
+      return await queryRecycleCount();
+    } catch (_) {
+      return -1;
     }
   });
 
   ipcMain.handle('show-context-menu', () => {
     const inMini = getMini().getMiniMode();
+    const cfg = loadConfig();
+    const canShrink = !inMini && clampPetSize(cfg.size || 360) > ensureBaseSize(cfg);
     const menu = Menu.buildFromTemplate([
+      {
+        label: '缩小到原尺寸',
+        enabled: canShrink,
+        click: () => {
+          shrinkToBaseSize({ reason: 'manual' });
+          rebuildTrayMenu();
+        },
+      },
       {
         label: '调整尺寸…',
         enabled: !inMini,
@@ -1542,6 +1819,8 @@ if (!gotLock) {
     registerIpc();
     createWindow();
     createTray();
+    ensureBaseSize();
+    startRecycleBinWatcher();
     syncTypingKeyboardMonitor();
 
     try {
@@ -1594,6 +1873,12 @@ if (!gotLock) {
   app.on('window-all-closed', (e) => e.preventDefault());
 
   app.on('before-quit', () => {
+    try {
+      recycleBinWatcher?.stop?.();
+    } catch (_) {}
+    try {
+      stopSizeAnim();
+    } catch (_) {}
     try {
       keyboardActivity.stop();
       mediaActivity.stop();

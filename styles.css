@@ -41,12 +41,13 @@ body::after {
   overflow: hidden;
 }
 
-#bh {
+#bh,
+#saturn {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  display: block;
+  display: none;
   pointer-events: none;
   background: transparent !important;
   border: none !important;
@@ -122,25 +123,6 @@ body[data-theme="danchen"] #hit {
   border-radius: 1px;
 }
 
-/* Blackhole: glowing embers sucked into the horizon */
-body[data-theme-type="blackhole"] .crumb,
-body[data-theme="blackhole"] .crumb {
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
-  margin-top: -5px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #fff6d4 0%, #ffb347 40%, #ff6a1a 75%, transparent 100%);
-  box-shadow: 0 0 10px rgba(255, 180, 80, 0.85), 0 0 18px rgba(255, 120, 40, 0.45);
-  animation: crumb-suck 0.85s cubic-bezier(0.4, 0, 0.85, 0.35) forwards;
-}
-
-body[data-theme-type="blackhole"] .crumb::after,
-body[data-theme="blackhole"] .crumb::after {
-  display: none;
-}
-
 @keyframes crumb-fall {
   0% {
     opacity: 0;
@@ -155,35 +137,94 @@ body[data-theme="blackhole"] .crumb::after {
   }
 }
 
-@keyframes crumb-suck {
-  0% {
-    opacity: 0;
-    transform: translate(var(--sx, 0), var(--sy, 0)) scale(0.9) rotate(0deg);
-  }
-  18% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(0, 0) scale(0.05) rotate(220deg);
-  }
+/* File scraps spiraling into the horizon (no glow particles) */
+.orbit-shred {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 16px;
+  height: 19px;
+  margin: 0;
+  border-radius: 2px;
+  pointer-events: none;
+  contain: layout style;
+  background: linear-gradient(160deg, #f7f1e4 0%, #d9c9a8 55%, #a89068 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  z-index: 4;
+  opacity: 0;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
 }
 
+.orbit-shred::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 3px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 1px;
+  box-shadow: 0 3px 0 rgba(255, 255, 255, 0.22), 0 6px 0 rgba(255, 255, 255, 0.16);
+}
+
+/* Torn scrap variants */
+.orbit-shred.tear-a {
+  width: 16px;
+  height: 12px;
+  clip-path: polygon(0 8%, 18% 0, 62% 4%, 100% 0, 96% 48%, 100% 100%, 40% 92%, 0 100%, 6% 50%);
+  border-radius: 0;
+}
+
+.orbit-shred.tear-b {
+  width: 11px;
+  height: 18px;
+  clip-path: polygon(8% 0, 100% 6%, 88% 42%, 100% 100%, 0 94%, 12% 55%, 0 22%);
+  border-radius: 0;
+  background: linear-gradient(145deg, #efe6d2 0%, #cbb892 50%, #8f7548 100%);
+}
+
+.orbit-shred.tear-c {
+  width: 13px;
+  height: 13px;
+  clip-path: polygon(0 0, 70% 0, 100% 30%, 100% 100%, 20% 100%, 0 70%);
+  border-radius: 0;
+  background: linear-gradient(200deg, #fff8ec 0%, #e2d2b0 60%, #9a8058 100%);
+}
+
+.orbit-shred.tear-a::after,
+.orbit-shred.tear-b::after,
+.orbit-shred.tear-c::after {
+  display: none;
+}
+
+body[data-theme-type="pet"] .orbit-shred {
+  width: 13px;
+  height: 15px;
+  clip-path: none;
+  border-radius: 2px;
+  background: linear-gradient(160deg, #f2e6c9 0%, #c4a574 55%, #8a6a3e 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+}
+
+body[data-theme-type="pet"] .orbit-shred::after {
+  display: block;
+}
+
+/* Soft horizon pull only — no particle ring */
 #bh-feed-fx {
   position: absolute;
-  inset: 12%;
+  inset: 22%;
   border-radius: 50%;
   pointer-events: none;
   z-index: 2;
   opacity: 0;
   background: radial-gradient(
     circle,
-    transparent 42%,
-    rgba(255, 200, 120, 0.12) 58%,
-    rgba(255, 160, 60, 0.28) 72%,
-    transparent 82%
+    transparent 58%,
+    rgba(0, 0, 0, 0.18) 72%,
+    transparent 86%
   );
-  box-shadow: inset 0 0 24px rgba(255, 180, 90, 0.15);
 }
 
 body.drag-files[data-theme-type="blackhole"] #bh-feed-fx,
@@ -191,25 +232,9 @@ body.drag-files[data-theme="blackhole"] #bh-feed-fx,
 body.feeding[data-theme-type="blackhole"] #bh-feed-fx,
 body.feeding[data-theme="blackhole"] #bh-feed-fx {
   opacity: 1;
-  animation: bh-ring-pulse 0.7s ease-in-out infinite;
 }
 
-body.drag-files[data-theme-type="blackhole"] #bh,
-body.drag-files[data-theme="blackhole"] #bh,
-body.feeding[data-theme-type="blackhole"] #bh,
-body.feeding[data-theme="blackhole"] #bh {
-  animation: bh-canvas-pulse 0.55s ease-in-out infinite;
-}
-
-@keyframes bh-ring-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.75; }
-  50% { transform: scale(1.06); opacity: 1; }
-}
-
-@keyframes bh-canvas-pulse {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.18); }
-}
+/* Avoid filter/transform on #bh while feeding — that forces expensive recomposites */
 
 #pet-eat-fx {
   position: absolute;
@@ -238,8 +263,24 @@ body[data-theme="blackhole"] #hit {
   border-radius: 50%;
 }
 
+body[data-theme-type="saturn"] #saturn {
+  display: block;
+}
+body[data-theme-type="saturn"] #bh,
+body[data-theme-type="saturn"] #pet {
+  display: none;
+}
+body[data-theme-type="saturn"] #hit {
+  inset: 12% 8% 18% 8%;
+  border-radius: 42%;
+}
+body.feeding[data-theme-type="saturn"] #hit {
+  cursor: grabbing;
+}
+
 /* Pet themes: calico + user skins */
-body[data-theme-type="pet"] #bh {
+body[data-theme-type="pet"] #bh,
+body[data-theme-type="pet"] #saturn {
   display: none;
 }
 body[data-theme-type="pet"] #pet {
@@ -289,18 +330,33 @@ body.drag-files[data-theme="danchen"] #pet-img {
   opacity: 0.98;
 }
 
-/* While dragging: keep framing stable; do not freeze the pet sprite */
+/* While dragging — lively but stable framing */
 body.window-dragging #pet-img {
   object-fit: contain;
   object-position: center 62%;
   width: 100%;
   height: 100%;
+  transform: scale(1.05) rotate(-3deg);
+  transform-origin: 50% 78%;
+  transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body.window-dragging[data-theme="danchen"] #pet-img {
   object-position: center bottom;
-  transform: scale(1.06) rotate(-4deg);
+  transform: scale(1.08) rotate(-5deg);
   transform-origin: 50% 90%;
+}
+
+body.window-dragging[data-theme-type="blackhole"] #bh {
+  transform: scale(1.04);
+  transform-origin: 50% 50%;
+  transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body.window-dragging[data-theme-type="saturn"] #saturn {
+  transform: scale(1.05) rotate(-2.5deg);
+  transform-origin: 50% 52%;
+  transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Mini mode docking (left / right)
@@ -313,9 +369,51 @@ body.mini-mode.mini-flip-assets #pet-img {
 }
 
 body.mini-mode.mini-left #pet,
-body.mini-mode.mini-left #bh {
+body.mini-mode.mini-left #bh,
+body.mini-mode.mini-left #saturn {
   transform: scaleX(-1);
   transform-origin: center center;
+}
+
+/* Peek from edge — slight pop + brightness */
+body.mini-mode.mini-peeking #pet-img {
+  transform: scale(1.06);
+  transform-origin: center center;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), filter 0.28s ease;
+  filter: brightness(1.06);
+}
+
+body.mini-mode.mini-peeking.mini-flip-assets #pet-img {
+  transform: scaleX(-1) scale(1.06);
+}
+
+body.mini-mode.mini-peeking[data-theme="danchen"] #pet-img {
+  transform: rotate(-42deg) scale(1.08);
+  transform-origin: 70% 55%;
+}
+
+body.mini-mode.mini-peeking[data-theme-type="blackhole"] #bh,
+body.mini-mode.mini-peeking[data-theme-type="saturn"] #saturn {
+  transform: scale(1.05);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body.mini-mode.mini-peeking.mini-left[data-theme-type="blackhole"] #bh,
+body.mini-mode.mini-peeking.mini-left[data-theme-type="saturn"] #saturn {
+  transform: scaleX(-1) scale(1.05);
+}
+
+/* Drag out of dock — spring settle */
+body.mini-undocking #pet-img,
+body.mini-undocking #bh,
+body.mini-undocking #saturn {
+  animation: undock-pop 0.32s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+
+@keyframes undock-pop {
+  0% { transform: scale(0.92); }
+  55% { transform: scale(1.08) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0deg); }
 }
 
 /* Calico mini framing (match clawd objectScale fileOffsets / scales) */
@@ -346,8 +444,11 @@ body.mini-mode[data-theme="danchen"] #pet-img {
   transform-origin: 70% 55%;
 }
 
+/* Mini: full-window grab — circular #hit is mostly off-screen when docked */
 body.mini-mode #hit {
-  cursor: pointer;
+  inset: 0 !important;
+  border-radius: 0 !important;
+  cursor: grab;
 }
 
 /* Eat frames — same layout as idle; chewing = PNG mouth/cheek frames only (no body shake) */

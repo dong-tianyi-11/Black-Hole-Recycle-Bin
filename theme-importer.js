@@ -7,7 +7,7 @@ const os = require('os');
 const extract = require('extract-zip');
 
 const MAX_THEME_ZIP_BYTES = 80 * 1024 * 1024;
-const RESERVED_THEME_IDS = new Set(['blackhole', 'calico', 'danchen', 'template']);
+const RESERVED_THEME_IDS = new Set(['blackhole', 'saturn', 'calico', 'danchen', 'template']);
 
 function sanitizeThemeDirName(value) {
   const cleaned = String(value || '')

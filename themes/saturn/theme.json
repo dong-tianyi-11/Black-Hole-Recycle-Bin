@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "saturn",
+  "name": "土星",
+  "type": "saturn",
+  "author": "Black Hole Recycle Bin",
+  "version": "1.0.0",
+  "description": "土星与光环——拖入的文件化作环上碎石，随回收站增减",
+  "viewBox": { "x": 0, "y": 0, "width": 1.38, "height": 1 },
+  "eatLabel": "土星",
+  "toastOk": "已镶进光环，送入回收站",
+  "toastFail": "没接住…",
+  "miniMode": {
+    "supported": true,
+    "offsetRatio": 0.42
+  }
+}

@@ -41,13 +41,13 @@
     "sleeping": ["calico-sleeping.apng"],
     "waking": ["calico-waking.apng"],
     "thinking": ["calico-thinking.apng"],
-    "working": ["calico-working-typing.apng"],
+    "working": ["calico-working-typing.apng", "calico-idle-follow.svg"],
     "listening": ["calico-listening.svg", "calico-listening.apng", "calico-listening.png"],
-    "juggling": ["calico-working-juggling.apng"],
-    "building": ["calico-working-building.apng"],
-    "conducting": ["calico-working-conducting.apng"],
-    "sweeping": ["calico-working-sweeping.apng"],
-    "carrying": ["calico-working-carrying.apng"],
+    "juggling": ["calico-working-juggling.apng", "calico-idle-follow.svg"],
+    "building": ["calico-working-building.apng", "calico-idle-follow.svg"],
+    "conducting": ["calico-working-conducting.apng", "calico-idle-follow.svg"],
+    "sweeping": ["calico-working-sweeping.apng", "calico-idle-follow.svg"],
+    "carrying": ["calico-working-carrying.apng", "calico-idle-follow.svg"],
     "error": ["calico-error.apng"],
     "attention": ["calico-happy.apng"],
     "notification": ["calico-notification.apng"],
@@ -57,10 +57,10 @@
     "eatChew": ["calico-eat-chew.svg", "calico-eat-chew.png"],
     "eatChew2": ["calico-eat-chew2.svg", "calico-eat-chew2.png", "calico-eat-chew.png"],
     "eatChew3": ["calico-eat-chew3.svg", "calico-eat-chew3.png", "calico-eat-chew.png"],
-    "miniIdle": ["calico-mini-idle.apng"],
-    "miniEnter": ["calico-mini-enter.apng"],
-    "miniPeek": ["calico-mini-peek.apng"],
-    "miniSleep": ["calico-mini-sleep.apng"]
+    "miniIdle": ["calico-mini-idle.apng", "calico-idle-follow.svg"],
+    "miniEnter": ["calico-mini-enter.apng", "calico-mini-idle.apng", "calico-idle-follow.svg"],
+    "miniPeek": ["calico-mini-peek.apng", "calico-mini-idle.apng", "calico-idle-follow.svg"],
+    "miniSleep": ["calico-mini-sleep.apng", "calico-sleeping.apng", "calico-idle-follow.svg"]
   },
   "miniMode": {
     "supported": true,
@@ -69,10 +69,10 @@
     "scale": 1.15,
     "offsetY": 65,
     "states": {
-      "miniIdle": ["calico-mini-idle.apng"],
-      "miniEnter": ["calico-mini-enter.apng"],
-      "miniPeek": ["calico-mini-peek.apng"],
-      "miniSleep": ["calico-mini-sleep.apng"]
+      "miniIdle": ["calico-mini-idle.apng", "calico-idle-follow.svg"],
+      "miniEnter": ["calico-mini-enter.apng", "calico-mini-idle.apng", "calico-idle-follow.svg"],
+      "miniPeek": ["calico-mini-peek.apng", "calico-mini-idle.apng", "calico-idle-follow.svg"],
+      "miniSleep": ["calico-mini-sleep.apng", "calico-sleeping.apng", "calico-idle-follow.svg"]
     }
   }
 }

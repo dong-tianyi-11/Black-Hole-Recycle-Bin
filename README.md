@@ -14,7 +14,7 @@ Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把�
 
 | 平台 | GitHub（推荐） | Gitee |
 |------|----------------|-------|
-| Windows x64（当前 **v1.1.0**） | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
+| Windows x64（当前 **v1.1.1**） | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
 | macOS Apple Silicon (M 系列) | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-arm64.dmg) |
 | macOS Intel | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg) | [直接下载](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-macOS-x64.dmg) |
 
@@ -41,7 +41,7 @@ https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/downloa
 
 | 皮肤 | 类型 | 说明 |
 |------|------|------|
-| 黑洞 | 画布 | 引力透镜 / 吸积盘粒子；拖入文件螺旋吸入回收站 |
+| 黑洞 | 画布 | 引力透镜 / 吸积盘；拖入文件旋转撕碎吸入回收站 |
 | 土星 | 画布 | 自转云带 + 光环碎石；碎石数量随回收站增减 |
 | 三花小猫 | 桌宠 | 戳一戳、吃文件、打字敲键盘、听歌、贴边迷你 |
 | 炼丹少年 | 桌宠 | 炼丹打字、听歌、吃文件、贴边迷你 |
@@ -52,8 +52,8 @@ https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/downloa
 
 | 操作 | 效果 |
 |------|------|
-| 左键拖拽 | 移动；拖到左右屏幕边缘松手进入迷你模式 |
-| 迷你模式 | 半身藏进边框；悬停探头；单击或托盘退出；可拖出边框退出 |
+| 左键拖拽 | 移动；**用力拖出左右屏幕边缘**松手才进入迷你模式（靠近不会自动吸附） |
+| 迷你模式 | 半身藏进边框；悬停探头；单击 / 拖出 / 托盘均可退出 |
 | 左键单击 | 小猫戳一戳 / 唤醒（迷你模式下为退出迷你） |
 | 滚轮 | 放大 / 缩小（以中心锚定，尽量不跳位） |
 | 拖入文件 | 吸入 / 吃掉 → 回收站（Win / Mac） |
@@ -77,6 +77,14 @@ API Key 使用系统加密（Windows DPAPI / macOS Keychain）保存在 `ai-secr
 - macOS：`~/Library/Application Support/black-hole-recycle-bin/themes/`
 
 ## 更新记录
+
+### v1.1.1
+- 黑洞回收特效：松手放入后文件旋转撕碎吸入（悬停拖拽不再提前播放）
+- 去掉吸入时的光粒子特效，改为纸质碎片撕碎
+- 修复喂食变大时窗口先挪位再放大
+- 迷你模式：不再「靠近边缘就吸附」，需拖出屏幕边缘足够距离才进入
+- 修复迷你贴边后热区过小导致拖不动 / 退不出
+- 变大动画锁定中心点，避免透明窗口位置跳动
 
 ### v1.1.0
 - 录屏可见：小猫 / 炼丹 / 土星默认可被 EV、OBS 等录到
