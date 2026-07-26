@@ -11,7 +11,7 @@ Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把�
 ## 永久下载直链
 
 链接固定不变，每次发版会覆盖同名安装包；**点击即下载现成安装包，用户无需自行构建**。  
-当前版本 **v1.1.1**（含 Windows + macOS arm64 / Intel）。
+当前版本 **v1.1.2**（含 Windows + macOS arm64 / Intel）。
 
 | 平台 | 下载（推荐 GitHub） | 备用 |
 |------|---------------------|------|
@@ -43,7 +43,7 @@ https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/downloa
 | 皮肤 | 类型 | 说明 |
 |------|------|------|
 | 黑洞 | 画布 | 引力透镜 / 吸积盘；拖入文件旋转撕碎吸入回收站 |
-| 土星 | 画布 | 自转云带 + 光环碎石；碎石数量随回收站增减 |
+| 土星 | 画布 | 哑光立体星球 + 光环光点；光点数量随回收站增减 |
 | 三花小猫 | 桌宠 | 戳一戳、吃文件、打字敲键盘、听歌、贴边迷你 |
 | 炼丹少年 | 桌宠 | 炼丹打字、听歌、吃文件、贴边迷你 |
 
@@ -78,6 +78,11 @@ API Key 使用系统加密（Windows DPAPI / macOS Keychain）保存在 `ai-secr
 - macOS：`~/Library/Application Support/black-hole-recycle-bin/themes/`
 
 ## 更新记录
+
+### v1.1.2
+- 土星主题：减弱塑料感立体光，改为哑光气态星球
+- 土星光环石粒改为高对比光点（深色描边 + 金色光晕），白桌面更易看见
+- 光环与行星阴影更柔和，突出环上光点
 
 ### v1.1.1
 - 黑洞回收特效：松手放入后文件旋转撕碎吸入（悬停拖拽不再提前播放）
@@ -133,7 +138,7 @@ macOS 安装包由 GitHub Actions（`macos-latest`）构建，产物名：`Black
 ### 测试自动更新
 
 1. 先安装较旧版本（如 v1.0.13）
-2. 确认 Gitee `latest` 发行版已是新版本（如 v1.1.0）的安装包与 `latest.yml`
+2. 确认 Gitee `latest` 发行版已是新版本（如 v1.1.2）的安装包与 `latest.yml`
 3. 打开已安装应用 → 托盘 → **检查更新** → 下载 → 重启
 
 | 平台 | 行为 |
