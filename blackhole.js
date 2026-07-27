@@ -448,7 +448,7 @@
     }
 
     triggerFeed(strength = 1) {
-      this.feed = Math.min(2.2, this.feed + strength);
+      this.feed = Math.min(1.85, this.feed + strength * 0.85);
       // Keep animation alive longer while feeding
       if (this.lowPower) this._skipFrames = 0;
     }
@@ -508,7 +508,8 @@
       const t = (now - this._start) / 1000;
       const dt = this._lastFrameTime ? Math.min(0.05, (now - this._lastFrameTime) / 1000) : 0.016;
       this._lastFrameTime = now;
-      this.feed = Math.max(0, this.feed - (this.feed > 0.8 ? 0.012 : 0.018));
+      // Gentler decay so the suck pulse eases out instead of snapping off
+      this.feed = Math.max(0, this.feed - (this.feed > 0.7 ? 0.008 : 0.012));
 
       // Ease desktop crossfade (~650ms, smoothstep) so window-switch updates don't pop
       let deskMixUniform = this.deskMix;

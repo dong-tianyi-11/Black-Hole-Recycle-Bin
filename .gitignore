@@ -1,5 +1,6 @@
 dist/
 dist-release/
+dist-mac/
 node_modules/
 *.log
 .DS_Store

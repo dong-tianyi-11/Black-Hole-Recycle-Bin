@@ -47,7 +47,7 @@
     "supported": true,
     "flipAssets": false,
     "offsetRatio": 0.38,
-    "scale": 0.98,
+    "scale": 0.82,
     "offsetY": 4,
     "states": {
       "miniIdle": ["mini.png"],

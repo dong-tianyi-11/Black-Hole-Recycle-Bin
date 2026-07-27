@@ -17,24 +17,51 @@
     const h2 = hash(seed + 17);
     const h3 = hash(seed + 41);
     const band = RING_INNER + h * (RING_OUTER - RING_INNER);
-    // Light-point palette: warm gold / amber / soft white (readable on light desks)
-    const huePick = hash(seed + 5);
-    const hue = huePick < 0.35 ? 42 + huePick * 20 : huePick < 0.7 ? 28 + huePick * 18 : 48;
+    // Size: many pebbles, fewer chunks (power curve)
+    const sizeRoll = Math.pow(hash(seed + 3), 2.4);
+    const size = 0.012 + sizeRoll * 0.11;
+    // Brighter stone palette: warm sand / pale gold / soft grey
+    const tone = hash(seed + 5);
+    let baseR; let baseG; let baseB;
+    if (tone < 0.34) {
+      baseR = 175 + hash(seed + 6) * 50;
+      baseG = 155 + hash(seed + 7) * 40;
+      baseB = 120 + hash(seed + 8) * 35;
+    } else if (tone < 0.68) {
+      baseR = 205 + hash(seed + 6) * 40;
+      baseG = 180 + hash(seed + 7) * 35;
+      baseB = 130 + hash(seed + 8) * 30;
+    } else {
+      baseR = 168 + hash(seed + 6) * 45;
+      baseG = 160 + hash(seed + 7) * 40;
+      baseB = 145 + hash(seed + 8) * 35;
+    }
+    // Irregular pebble outline (5–8 verts)
+    const n = 5 + Math.floor(hash(seed + 19) * 4);
+    const verts = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + hash(seed + 30 + i) * 0.45;
+      const rr = 0.55 + hash(seed + 50 + i) * 0.55;
+      verts.push({ a, r: rr });
+    }
     return {
       id: seed,
       a: band,
       angle: opts.angle != null ? opts.angle : h2 * Math.PI * 2,
-      speed: 0.12 + h3 * 0.22,
-      size: 0.036 + hash(seed + 3) * 0.05,
+      speed: 0.1 + h3 * 0.2,
+      size,
       wobble: hash(seed + 9) * Math.PI * 2,
-      hue,
-      sat: 55 + hash(seed + 7) * 35,
-      lit: 72 + hash(seed + 11) * 22,
+      spin: hash(seed + 23) * Math.PI * 2,
+      spinSpeed: (hash(seed + 27) - 0.5) * 0.35,
+      aspect: 0.55 + hash(seed + 31) * 0.4,
+      baseR,
+      baseG,
+      baseB,
+      verts,
       life: opts.life != null ? opts.life : 1,
       dying: false,
       birth: opts.birth != null ? opts.birth : 1,
       spark: hash(seed + 13),
-      pulse: 0.8 + hash(seed + 21) * 1.4,
     };
   }
 
@@ -121,7 +148,7 @@
       let sy = typeof clientY === 'number' ? clientY - rect.top : h * 0.15;
       sx = Math.max(0, Math.min(w, sx));
       sy = Math.max(0, Math.min(h, sy));
-      this.triggerFeed(0.9 + n * 0.12);
+      this.triggerFeed(0.7 + n * 0.1);
       this.targetCount += n;
 
       const room = Math.max(0, MAX_ROCKS - this._aliveCount());
@@ -129,14 +156,18 @@
       for (let i = 0; i < spawn; i++) {
         this._seed += 1;
         const rock = makeRock(this._seed, { birth: 0 });
-        rock.angle = Math.PI * 0.15 + Math.random() * Math.PI * 0.7;
+        // Land on the front arc of the ring for a clear settle path
+        rock.angle = Math.PI * 0.12 + Math.random() * Math.PI * 0.76;
+        const spread = 18 + i * 2.5;
         this.incoming.push({
           rock,
-          x0: sx + (Math.random() - 0.5) * 28,
-          y0: sy + (Math.random() - 0.5) * 28,
+          x0: sx + (Math.random() - 0.5) * spread,
+          y0: sy + (Math.random() - 0.5) * spread,
           t: 0,
-          dur: 0.55 + Math.random() * 0.45 + i * 0.04,
-          spin: (Math.random() - 0.5) * 10,
+          delay: i * 0.055,
+          dur: 0.95 + Math.random() * 0.45,
+          spin: (Math.random() - 0.5) * 5.5,
+          swirl: (Math.random() > 0.5 ? 1 : -1) * (0.55 + Math.random() * 0.65),
         });
       }
     }
@@ -267,7 +298,7 @@
     }
 
     _drawRingBand(ctx, cx, cy, unit, t, front) {
-      // Dusty matte rings — keep contrast low so light-points can sit on top
+      // Dusty matte rings — keep contrast low so rock grains can sit on top
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(1, Math.sin(TILT));
@@ -328,60 +359,79 @@
       }
     }
 
+    _rockPath(ctx, rock, r) {
+      const verts = rock.verts || [{ a: 0, r: 1 }];
+      ctx.beginPath();
+      for (let i = 0; i < verts.length; i++) {
+        const v = verts[i];
+        const px = Math.cos(v.a) * v.r * r;
+        const py = Math.sin(v.a) * v.r * r * (rock.aspect || 0.75);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    }
+
     _drawRock(ctx, rock, cx, cy, unit, t) {
       const ang = rock.angle + t * rock.speed * 0.35;
       const p = this._ringPoint(rock.a, ang, cx, cy, unit);
-      const twinkle = 0.9 + 0.1 * Math.sin(t * (rock.pulse || 1) * 2.4 + rock.wobble);
-      const raw = rock.size * unit * p.scale * (0.75 + 0.25 * rock.birth) * rock.life * twinkle;
-      // Opaque light dots with dark collar — readable on white AND dark desks
-      const core = Math.max(2.6, raw * 0.85);
-      const mid = core * 1.7;
-      const collar = core * 2.35;
+      const raw = rock.size * unit * p.scale * (0.72 + 0.28 * rock.birth) * rock.life;
+      // Tiny pebbles stay visible; large chunks read as real ring rocks
+      const r = Math.max(1.4, raw * 1.05);
       if (rock.life < 0.05) return;
-      const bob = Math.sin(t * 2.1 + rock.wobble) * unit * 0.008;
+      const bob = Math.sin(t * 1.6 + rock.wobble) * unit * 0.004;
       const x = p.x;
       const y = p.y + bob;
       const depthLit = p.shade != null ? p.shade : 1;
       const alpha = Math.max(
-        0.55,
-        Math.min(1, rock.life * rock.birth * (0.8 + 0.2 * p.scale) * depthLit)
+        0.72,
+        Math.min(1, rock.life * rock.birth * (0.85 + 0.15 * p.scale) * depthLit)
       );
+      const shade = 0.9 + 0.1 * depthLit;
+      const br = Math.round(rock.baseR * shade);
+      const bg = Math.round(rock.baseG * shade);
+      const bb = Math.round(rock.baseB * shade);
+      const darkR = Math.max(0, br - 28);
+      const darkG = Math.max(0, bg - 24);
+      const darkB = Math.max(0, bb - 20);
+      const litR = Math.min(255, br + 55);
+      const litG = Math.min(255, bg + 48);
+      const litB = Math.min(255, bb + 36);
 
       ctx.save();
       ctx.translate(x, y);
+      ctx.rotate((rock.spin || 0) + t * (rock.spinSpeed || 0));
       ctx.globalAlpha = alpha;
       ctx.globalCompositeOperation = 'source-over';
 
-      // Dark amber collar for contrast on light wallpapers
-      const collarG = ctx.createRadialGradient(0, 0, core * 0.6, 0, 0, collar);
-      collarG.addColorStop(0, 'rgba(90, 45, 10, 0)');
-      collarG.addColorStop(0.45, 'rgba(70, 35, 8, 0.22)');
-      collarG.addColorStop(0.75, 'rgba(40, 18, 4, 0.35)');
-      collarG.addColorStop(1, 'rgba(20, 8, 2, 0)');
-      ctx.fillStyle = collarG;
+      // Soft contact shadow so grains stay readable on light desks
+      ctx.fillStyle = 'rgba(40, 22, 10, 0.14)';
       ctx.beginPath();
-      ctx.arc(0, 0, collar, 0, Math.PI * 2);
+      ctx.ellipse(r * 0.12, r * 0.22, r * 1.05, r * 0.55, 0.2, 0, Math.PI * 2);
       ctx.fill();
 
-      // Saturated gold body
-      const midG = ctx.createRadialGradient(-core * 0.15, -core * 0.15, 0, 0, 0, mid);
-      midG.addColorStop(0, `hsla(${rock.hue}, 90%, 68%, 0.95)`);
-      midG.addColorStop(0.55, `hsla(${rock.hue}, 85%, 52%, 0.9)`);
-      midG.addColorStop(1, `hsla(${rock.hue - 8}, 70%, 38%, 0)`);
-      ctx.fillStyle = midG;
-      ctx.beginPath();
-      ctx.arc(0, 0, mid, 0, Math.PI * 2);
+      // Bright matte stone body
+      const body = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.05, 0, 0, r * 1.15);
+      body.addColorStop(0, `rgb(${litR},${litG},${litB})`);
+      body.addColorStop(0.4, `rgb(${br},${bg},${bb})`);
+      body.addColorStop(1, `rgb(${darkR},${darkG},${darkB})`);
+      ctx.fillStyle = body;
+      this._rockPath(ctx, rock, r);
       ctx.fill();
 
-      // Solid bright core (not additive — stays sharp on white)
-      ctx.fillStyle = `rgba(255, 248, 230, ${0.92 + this.feed * 0.05})`;
-      ctx.beginPath();
-      ctx.arc(0, 0, core, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(255, 255, 252, 0.95)';
-      ctx.beginPath();
-      ctx.arc(-core * 0.15, -core * 0.15, Math.max(0.8, core * 0.4), 0, Math.PI * 2);
-      ctx.fill();
+      // Thin rocky rim
+      ctx.strokeStyle = `rgba(${darkR},${darkG},${darkB},0.55)`;
+      ctx.lineWidth = Math.max(0.55, r * 0.1);
+      this._rockPath(ctx, rock, r);
+      ctx.stroke();
+
+      // Specular chip — keeps pebbles reading as lit stone
+      if (r > 2.4) {
+        ctx.fillStyle = `rgba(255, 248, 230, ${0.35 + Math.min(0.25, r * 0.02)})`;
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.22, -r * 0.28, r * 0.24, r * 0.15, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       ctx.restore();
     }
@@ -389,6 +439,10 @@
     _drawIncoming(ctx, cx, cy, unit, dt) {
       for (let i = this.incoming.length - 1; i >= 0; i--) {
         const m = this.incoming[i];
+        if (m.delay > 0) {
+          m.delay -= dt;
+          continue;
+        }
         m.t += dt / m.dur;
         const rock = m.rock;
         const target = this._ringPoint(
@@ -399,34 +453,49 @@
           unit
         );
         const u = Math.min(1, m.t);
-        const ease = 1 - Math.pow(1 - u, 2.4);
-        const x = m.x0 + (target.x - m.x0) * ease;
-        const y = m.y0 + (target.y - m.y0) * ease;
-        const arc = Math.sin(u * Math.PI) * unit * 0.35;
-        const s = Math.max(2.8, rock.size * unit * (1.15 - u * 0.2));
+        // Smoothstep — soft accelerate then settle
+        const ease = u * u * u * (u * (u * 6 - 15) + 10);
+        const midX = (m.x0 + target.x) * 0.5 + (target.y - m.y0) * 0.22 * (m.swirl || 1);
+        const midY = (m.y0 + target.y) * 0.5 - unit * 0.42;
+        const omt = 1 - ease;
+        const x = omt * omt * m.x0 + 2 * omt * ease * midX + ease * ease * target.x;
+        const y = omt * omt * m.y0 + 2 * omt * ease * midY + ease * ease * target.y;
+        const s = Math.max(1.8, rock.size * unit * (1.15 - ease * 0.2) * (0.85 + 0.2 * Math.sin(u * Math.PI)));
+        const fade = u < 0.08 ? u / 0.08 : 1;
         ctx.save();
-        ctx.translate(x, y - arc);
+        ctx.globalAlpha = fade;
+        ctx.translate(x, y);
+        ctx.rotate(m.spin * ease);
         ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle = `hsla(${rock.hue}, 80%, 45%, ${0.55 * (1 - u)})`;
-        ctx.lineWidth = Math.max(1.4, s * 0.5);
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo((m.x0 - x) * 0.18, (m.y0 - (y - arc)) * 0.18);
-        ctx.stroke();
-        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 2);
-        g.addColorStop(0, 'rgba(255, 252, 240, 1)');
-        g.addColorStop(0.35, `hsla(${rock.hue}, 85%, 58%, 0.95)`);
-        g.addColorStop(0.7, `hsla(${rock.hue}, 70%, 40%, 0.35)`);
-        g.addColorStop(1, 'rgba(80, 40, 10, 0)');
+        // Soft dust streak
+        const trailA = 0.28 * (1 - ease);
+        if (trailA > 0.02) {
+          ctx.strokeStyle = `rgba(${rock.baseR},${rock.baseG},${rock.baseB},${trailA})`;
+          ctx.lineWidth = Math.max(1, s * 0.4);
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo((m.x0 - x) * 0.12, (m.y0 - y) * 0.12);
+          ctx.stroke();
+        }
+        const br = Math.min(255, rock.baseR + 20);
+        const bg = Math.min(255, rock.baseG + 16);
+        const bb = Math.min(255, rock.baseB + 10);
+        const g = ctx.createRadialGradient(-s * 0.25, -s * 0.3, 0, 0, 0, s * 1.4);
+        g.addColorStop(0, `rgb(${Math.min(255, br + 50)},${Math.min(255, bg + 42)},${Math.min(255, bb + 28)})`);
+        g.addColorStop(0.55, `rgb(${br},${bg},${bb})`);
+        g.addColorStop(1, `rgb(${Math.max(0, br - 35)},${Math.max(0, bg - 30)},${Math.max(0, bb - 25)})`);
         ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(0, 0, s * 1.9, 0, Math.PI * 2);
+        this._rockPath(ctx, rock, s);
         ctx.fill();
+        ctx.strokeStyle = `rgba(${Math.max(0, br - 40)},${Math.max(0, bg - 35)},${Math.max(0, bb - 30)},0.55)`;
+        ctx.lineWidth = Math.max(0.55, s * 0.09);
+        this._rockPath(ctx, rock, s);
+        ctx.stroke();
         ctx.restore();
 
         if (u >= 1) {
-          rock.birth = 0;
+          rock.birth = 0.15;
           this.rocks.push(rock);
           this.incoming.splice(i, 1);
         }
@@ -446,14 +515,14 @@
       const dt = Math.min(0.05, (now - this._last) / 1000);
       this._last = now;
       this.time = (now - this._start) / 1000;
-      this.feed = Math.max(0, this.feed - dt * 0.85);
+      this.feed = Math.max(0, this.feed - dt * 0.55);
 
       // Animate birth / death
       for (let i = this.rocks.length - 1; i >= 0; i--) {
         const r = this.rocks[i];
-        if (r.birth < 1) r.birth = Math.min(1, r.birth + dt * 2.2);
+        if (r.birth < 1) r.birth = Math.min(1, r.birth + dt * 1.4);
         if (r.dying) {
-          r.life -= dt * 1.6;
+          r.life -= dt * 1.1;
           if (r.life <= 0) this.rocks.splice(i, 1);
         }
       }
@@ -467,7 +536,7 @@
       const cy = H * 0.52;
       const R = Math.min(W, H) * 0.22;
       const unit = R;
-      const pulse = 1 + this.feed * 0.04 * Math.sin(this.time * 10);
+      const pulse = 1 + this.feed * 0.028 * Math.sin(this.time * 6.5);
       const Rp = R * pulse;
 
       // Soft planet shade on the ring (matte, not dramatic)

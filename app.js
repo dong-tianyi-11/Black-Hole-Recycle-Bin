@@ -76,20 +76,25 @@
 
   function placeOrbitShred(p, t) {
     const u = Math.max(0, Math.min(1, t));
-    const ease = u * u * (1.35 - 0.35 * u);
-    const r = p.r0 * Math.exp(-(p.pull || 2.5) * ease);
+    // Smoothstep — silkier spiral than hard quadratic crush
+    const ease = u * u * u * (u * (u * 6 - 15) + 10);
+    const r = p.r0 * Math.exp(-(p.pull || 2.2) * ease);
     const theta = p.theta0 + p.turns * Math.PI * 2 * ease;
     const x = p.tx + Math.cos(theta) * r;
     const y = p.ty + Math.sin(theta) * r;
-    // Violent shear: stretch hard mid-flight, then crush into the horizon
-    const tear = Math.pow(Math.max(0, (ease - 0.08) / 0.92), 0.75);
+    // Soft shear mid-flight, then gently crush into the horizon
+    const tear = Math.pow(Math.max(0, (ease - 0.12) / 0.88), 1.15);
     const spin = p.rot0 + p.spin * ease * 360;
-    const crush = 1 - ease * 0.94;
+    const crush = 1 - ease * 0.9;
     const sx = p.size0 * crush * (1 + tear * p.stretchX);
     const sy = p.size0 * crush * (1 - tear * p.stretchY);
-    const skew = tear * p.skew * 42;
+    const skew = tear * p.skew * 22;
     const opacity =
-      t < 0 ? 0 : t < 0.04 ? t / 0.04 : Math.max(0, 1 - ease * ease * 1.15);
+      t < 0
+        ? 0
+        : t < 0.06
+          ? t / 0.06
+          : Math.max(0, 1 - Math.pow(ease, 1.35) * 1.05);
     p.el.style.transform =
       `translate3d(${(x - p.hw).toFixed(1)}px,${(y - p.hh).toFixed(1)}px,0)` +
       ` rotate(${spin.toFixed(1)}deg) skewX(${skew.toFixed(1)}deg)` +
@@ -156,28 +161,28 @@
         alive += 1;
         placeOrbitShred(p, t);
 
-        // Mid-flight crack: spawn extra scraps for a harsher shred
-        if (p.canCrack && !p.cracked && t > 0.28 && t < 0.55 && orbitPool.length < 22) {
+        // Soft mid-flight split — fewer, gentler scraps
+        if (p.canCrack && !p.cracked && t > 0.34 && t < 0.58 && orbitPool.length < 18) {
           p.cracked = true;
-          const room = Math.max(0, 22 - orbitPool.length);
-          const kids = Math.min(room, 2 + Math.floor(Math.random() * 2));
+          const room = Math.max(0, 18 - orbitPool.length);
+          const kids = Math.min(room, 1 + (Math.random() > 0.55 ? 1 : 0));
           for (let k = 0; k < kids; k++) {
-            const kick = (Math.random() - 0.5) * 0.9;
+            const kick = (Math.random() - 0.5) * 0.55;
             pushOrbitShred({
               tear: true,
-              r0: Math.max(12, p.r0 * (0.55 + Math.random() * 0.35)),
+              r0: Math.max(12, p.r0 * (0.62 + Math.random() * 0.28)),
               theta0: p.theta0 + kick,
-              turns: p.turns * (0.7 + Math.random() * 0.8) * (Math.random() > 0.5 ? 1 : -1),
-              duration: p.duration * (0.45 + Math.random() * 0.25),
+              turns: p.turns * (0.75 + Math.random() * 0.45) * (Math.random() > 0.5 ? 1 : -1),
+              duration: p.duration * (0.55 + Math.random() * 0.22),
               born: now,
-              size0: p.size0 * (0.45 + Math.random() * 0.35),
+              size0: p.size0 * (0.4 + Math.random() * 0.28),
               tx: p.tx,
               ty: p.ty,
-              spin: (3.5 + Math.random() * 5) * (Math.random() > 0.5 ? 1 : -1),
-              stretchX: 0.9 + Math.random() * 1.2,
-              stretchY: 0.55 + Math.random() * 0.7,
-              skew: (Math.random() - 0.5) * 3.2,
-              pull: 3.2 + Math.random() * 1.2,
+              spin: (2.2 + Math.random() * 2.8) * (Math.random() > 0.5 ? 1 : -1),
+              stretchX: 0.45 + Math.random() * 0.7,
+              stretchY: 0.3 + Math.random() * 0.45,
+              skew: (Math.random() - 0.5) * 1.6,
+              pull: 2.4 + Math.random() * 0.8,
               canCrack: false,
             });
           }
@@ -192,15 +197,15 @@
     orbitRaf = requestAnimationFrame(tick);
   }
 
-  /** Log-spiral: files rotate, tear apart, and crush into the event horizon / mouth. */
+  /** Log-spiral: files glide in, softly tear, and settle into the horizon / mouth. */
   function spawnOrbitSuck(count, clientX, clientY) {
     if (!crumbs) return;
     // Cap total live shreds so drop + drag never flood the compositor
-    const room = Math.max(0, 16 - orbitPool.length);
+    const room = Math.max(0, 14 - orbitPool.length);
     if (room <= 0) return;
     const bh = isBlackhole();
-    const perFile = bh ? 4 : 2;
-    const n = Math.min(room, Math.min(14, Math.max(4, (count || 1) * perFile)));
+    const perFile = bh ? 3 : 2;
+    const n = Math.min(room, Math.min(12, Math.max(3, (count || 1) * perFile)));
     const w = window.innerWidth || 1;
     const h = window.innerHeight || 1;
     const tx = w * 0.5;
@@ -223,30 +228,30 @@
     const now = performance.now();
 
     for (let i = 0; i < n; i++) {
-      const jitter = (bh ? 10 : 14) + Math.random() * (bh ? 28 : 28);
-      const jAng = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+      const jitter = (bh ? 8 : 12) + Math.random() * (bh ? 22 : 24);
+      const jAng = (i / n) * Math.PI * 2 + Math.random() * 0.4;
       const x0 = sx + Math.cos(jAng) * jitter;
       const y0 = sy + Math.sin(jAng) * jitter;
       const r0 = Math.max(bh ? minDim * 0.22 : 20, Math.hypot(x0 - tx, y0 - ty));
       const theta0 = Math.atan2(y0 - ty, x0 - tx);
-      const turns = (bh ? 1.35 : 0.9) + Math.random() * (bh ? 1.6 : 1.1);
-      const dir = Math.random() > 0.18 ? 1 : -1;
+      const turns = (bh ? 1.05 : 0.75) + Math.random() * (bh ? 0.9 : 0.7);
+      const dir = Math.random() > 0.22 ? 1 : -1;
       pushOrbitShred({
         tear: bh,
         r0,
         theta0,
         turns: turns * dir,
-        duration: (bh ? 640 : 580) + Math.random() * (bh ? 260 : 320),
-        born: now + i * (bh ? 14 : 22),
-        size0: bh ? 1.05 + Math.random() * 0.75 : 0.85 + Math.random() * 0.55,
+        duration: (bh ? 920 : 780) + Math.random() * (bh ? 280 : 260),
+        born: now + i * (bh ? 28 : 36),
+        size0: bh ? 0.95 + Math.random() * 0.55 : 0.8 + Math.random() * 0.45,
         tx,
         ty,
-        spin: ((bh ? 4.2 : 2.2) + Math.random() * (bh ? 5.5 : 3.4)) * (Math.random() > 0.5 ? 1 : -1),
-        stretchX: bh ? 0.85 + Math.random() * 1.4 : 0.35 + Math.random() * 0.55,
-        stretchY: bh ? 0.55 + Math.random() * 0.85 : 0.25 + Math.random() * 0.4,
-        skew: (Math.random() - 0.5) * (bh ? 3.4 : 2),
-        pull: bh ? 3.4 + Math.random() * 1.1 : 2.5,
-        canCrack: bh && i % 2 === 0,
+        spin: ((bh ? 2.4 : 1.5) + Math.random() * (bh ? 2.8 : 2.2)) * (Math.random() > 0.5 ? 1 : -1),
+        stretchX: bh ? 0.4 + Math.random() * 0.65 : 0.22 + Math.random() * 0.35,
+        stretchY: bh ? 0.28 + Math.random() * 0.45 : 0.16 + Math.random() * 0.28,
+        skew: (Math.random() - 0.5) * (bh ? 1.6 : 1.1),
+        pull: bh ? 2.35 + Math.random() * 0.7 : 2.05 + Math.random() * 0.45,
+        canCrack: bh && i % 3 === 0,
       });
     }
     ensureOrbitTick();
@@ -879,7 +884,7 @@
       saturn?.ingest(paths.length, e.clientX, e.clientY);
     } else if (isBlackhole()) {
       spawnOrbitSuck(paths.length, e.clientX, e.clientY);
-      renderer?.triggerFeed(1.6);
+      renderer?.triggerFeed(1.2);
     } else {
       spawnOrbitSuck(paths.length, e.clientX, e.clientY);
       spawnCrumbs(Math.min(4, paths.length), { blackhole: false });

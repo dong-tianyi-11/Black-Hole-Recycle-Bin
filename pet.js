@@ -149,6 +149,7 @@
       this.clearTimers();
       if (this.img) {
         this.img.classList.remove('pet-chewing', 'pet-eating-open');
+        this._syncListeningMotion(false);
       }
       if (on) {
         this.locked = false;
@@ -180,6 +181,12 @@
       }
     }
 
+    _syncListeningMotion(on) {
+      if (!this.img) return;
+      this.img.classList.toggle('pet-listening', !!on);
+      this.img.parentElement?.classList.toggle('pet-listening', !!on);
+    }
+
     play(state, { lock = false, holdMs = null, force = false } = {}) {
       if (!this.enabled || !this.img) return;
       if (this.locked && !lock && !force && state !== this.state) return;
@@ -201,6 +208,7 @@
         this.img.src = next + bust;
       }
       this.state = key;
+      this._syncListeningMotion(key === 'listening');
       this.locked = !!lock;
       if (lock) {
         const ms = holdMs != null ? holdMs : this.timings[this.state] || 2000;
@@ -336,6 +344,18 @@
       const next = !!on;
       if (this._typing === next) {
         if (next) this.notePointer();
+        // Resync: flag says idle but face still on 敲键盘/炼丹 → leave
+        if (
+          !next &&
+          this.state === 'working' &&
+          this.enabled &&
+          !this._dnd &&
+          !this._miniMode &&
+          !this._feeding &&
+          !this._windowDragging
+        ) {
+          this.resumeAmbient();
+        }
         return;
       }
       this._typing = next;
@@ -361,7 +381,7 @@
         return;
       }
 
-      // Stopped typing → music listening takes over if active
+      // Stopped typing → leave working immediately (listening or idle)
       if (this.state === 'working' || this.state === 'idle') {
         this.resumeAmbient();
       }
@@ -413,15 +433,22 @@
           return;
         }
         if (this._typing) {
-          // Stay on working while keys are active
+          // Stay on working only while keys are actively typing
           if (this.state !== 'working' && !this.locked && !this._feeding) {
             this.play('working', { force: true });
           }
-          this.later(step, 600);
+          this.later(step, 500);
+          return;
+        }
+        // Escape hatch: never remain on 敲键盘/炼丹 without active typing
+        if (this.state === 'working') {
+          this._typing = false;
+          this.resumeAmbient();
+          this.later(step, 300);
           return;
         }
         if (this._listening && this._resolveFile('listening')) {
-          if (this.state !== 'listening' && !this._feeding && this.state !== 'working') {
+          if (this.state !== 'listening' && !this._feeding) {
             this.locked = false;
             this.play('listening', { force: true });
           }
@@ -432,7 +459,7 @@
           this.later(step, 800);
           return;
         }
-        if ([...SLEEP_KEYS, ...EAT_KEYS, ...MINI_KEYS, 'working', 'listening'].includes(this.state)) {
+        if ([...SLEEP_KEYS, ...EAT_KEYS, ...MINI_KEYS, 'listening'].includes(this.state)) {
           this.later(step, 1000);
           return;
         }

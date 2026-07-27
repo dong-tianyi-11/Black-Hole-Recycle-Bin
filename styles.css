@@ -77,6 +77,86 @@ body::after {
   image-rendering: auto;
 }
 
+/* Listening: gentle bob + soft sway (works with static PNG) */
+#pet-img.pet-listening {
+  animation: pet-listen-bob 1.15s ease-in-out infinite;
+}
+
+@keyframes pet-listen-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.8deg) scale(1);
+  }
+  50% {
+    transform: translateY(-2.8%) rotate(1deg) scale(1.012);
+  }
+}
+
+/* Floating music notes around the listening pet */
+#pet.pet-listening::before,
+#pet.pet-listening::after {
+  content: "♪";
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  color: #c45a7a;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  animation: pet-note-float 2.2s ease-in-out infinite;
+}
+
+#pet.pet-listening::before {
+  left: 16%;
+  top: 22%;
+  animation-delay: 0s;
+}
+
+#pet.pet-listening::after {
+  content: "♫";
+  right: 14%;
+  top: 18%;
+  color: #7d5cff;
+  font-size: 13px;
+  animation-delay: 0.7s;
+}
+
+@keyframes pet-note-float {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.85) rotate(-8deg);
+  }
+  18% {
+    opacity: 0.9;
+  }
+  70% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px) scale(1.08) rotate(10deg);
+  }
+}
+
+body.window-dragging #pet-img.pet-listening,
+body.drag-files #pet-img.pet-listening,
+body.mini-mode #pet-img.pet-listening,
+body.feeding #pet-img.pet-listening {
+  animation: none;
+}
+
+body.window-dragging #pet.pet-listening::before,
+body.window-dragging #pet.pet-listening::after,
+body.drag-files #pet.pet-listening::before,
+body.drag-files #pet.pet-listening::after,
+body.mini-mode #pet.pet-listening::before,
+body.mini-mode #pet.pet-listening::after,
+body.feeding #pet.pet-listening::before,
+body.feeding #pet.pet-listening::after {
+  display: none;
+}
+
 /* Danchen: assets are pre-normalized on a square canvas (bottom-anchored) */
 body[data-theme="danchen"] #pet-img {
   object-position: center bottom;
@@ -142,18 +222,19 @@ body[data-theme="danchen"] #hit {
   position: absolute;
   left: 0;
   top: 0;
-  width: 16px;
-  height: 19px;
+  width: 15px;
+  height: 18px;
   margin: 0;
-  border-radius: 2px;
+  border-radius: 3px;
   pointer-events: none;
   contain: layout style;
-  background: linear-gradient(160deg, #f7f1e4 0%, #d9c9a8 55%, #a89068 100%);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(160deg, #faf4e8 0%, #e2d2b4 55%, #b89a70 100%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
   z-index: 4;
   opacity: 0;
   transform-origin: 50% 50%;
   will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 
 .orbit-shred::after {
@@ -387,11 +468,6 @@ body.mini-mode.mini-peeking.mini-flip-assets #pet-img {
   transform: scaleX(-1) scale(1.06);
 }
 
-body.mini-mode.mini-peeking[data-theme="danchen"] #pet-img {
-  transform: rotate(-42deg) scale(1.08);
-  transform-origin: 70% 55%;
-}
-
 body.mini-mode.mini-peeking[data-theme-type="blackhole"] #bh,
 body.mini-mode.mini-peeking[data-theme-type="saturn"] #saturn {
   transform: scale(1.05);
@@ -433,15 +509,104 @@ body.mini-mode.mini-flip-assets[data-theme="calico"] #pet-img {
 
 /* Danchen mini: peek face from edge; left dock mirrors via #pet scaleX(-1) */
 body.mini-mode[data-theme="danchen"] #pet-img {
-  width: 118%;
-  height: 118%;
+  width: 92%;
+  height: 92%;
   max-width: none;
   object-fit: contain;
-  object-position: 40% 26%;
-  margin-left: -2%;
-  margin-top: -4%;
+  object-position: 40% 28%;
+  margin-left: 2%;
+  margin-top: 0;
   transform: rotate(-42deg);
   transform-origin: 70% 55%;
+  animation: danchen-mini-bob 1.35s ease-in-out infinite;
+}
+
+@keyframes danchen-mini-bob {
+  0%,
+  100% {
+    transform: rotate(-42deg) translateY(0) scale(1);
+  }
+  50% {
+    transform: rotate(-38.5deg) translateY(-2.6%) scale(1.02);
+  }
+}
+
+body.mini-mode.mini-peeking[data-theme="danchen"] #pet-img {
+  animation: danchen-mini-peek 1.15s ease-in-out infinite;
+  filter: brightness(1.06);
+}
+
+@keyframes danchen-mini-peek {
+  0%,
+  100% {
+    transform: rotate(-42deg) translateY(0) scale(1.05);
+  }
+  50% {
+    transform: rotate(-36deg) translateY(-2.8%) scale(1.08);
+  }
+}
+
+/* Soft sparkles while danchen is docked mini */
+body.mini-mode[data-theme="danchen"] #pet::before,
+body.mini-mode[data-theme="danchen"] #pet::after {
+  content: "✦";
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  color: #7ec8ff;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+  text-shadow: 0 0 6px rgba(126, 200, 255, 0.55);
+  animation: danchen-mini-sparkle 2.4s ease-in-out infinite;
+}
+
+body.mini-mode[data-theme="danchen"] #pet::before {
+  left: 18%;
+  top: 28%;
+  animation-delay: 0s;
+}
+
+body.mini-mode[data-theme="danchen"] #pet::after {
+  content: "✧";
+  right: 20%;
+  top: 22%;
+  color: #a8e0ff;
+  font-size: 10px;
+  animation-delay: 0.9s;
+}
+
+@keyframes danchen-mini-sparkle {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.7);
+  }
+  25% {
+    opacity: 0.85;
+  }
+  70% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(1.15);
+  }
+}
+
+body.window-dragging.mini-mode[data-theme="danchen"] #pet-img {
+  animation: none;
+}
+
+/* Keep undock spring (higher specificity than danchen-mini-bob) */
+body.mini-undocking[data-theme="danchen"] #pet-img {
+  animation: undock-pop 0.32s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+
+body.window-dragging.mini-mode[data-theme="danchen"] #pet::before,
+body.window-dragging.mini-mode[data-theme="danchen"] #pet::after,
+body.mini-undocking[data-theme="danchen"] #pet::before,
+body.mini-undocking[data-theme="danchen"] #pet::after {
+  display: none;
 }
 
 /* Mini: full-window grab — circular #hit is mostly off-screen when docked */
