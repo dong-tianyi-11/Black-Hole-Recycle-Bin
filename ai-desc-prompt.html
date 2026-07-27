@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>角色描述</title>
+  <style>
+    html, body {
+      margin: 0; height: 100%;
+      background: #12141a; color: #e8ecf4;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+    }
+    body { display: flex; flex-direction: column; padding: 16px 18px; gap: 10px; box-sizing: border-box; }
+    h1 { margin: 0; font-size: 15px; font-weight: 650; }
+    p { margin: 0; color: #8b93a7; line-height: 1.45; }
+    textarea {
+      flex: 1; width: 100%; resize: none; border: 1px solid #2c3340; border-radius: 8px;
+      background: #1c2029; color: #e8ecf4; padding: 10px; font-size: 13px; outline: none;
+      font-family: inherit; line-height: 1.5;
+    }
+    textarea:focus { border-color: #b87a28; }
+    .row { display: flex; gap: 10px; }
+    button {
+      flex: 1; border: none; border-radius: 8px; padding: 10px 12px; font-size: 13px; cursor: pointer;
+    }
+    .ghost { background: transparent; color: #8b93a7; border: 1px solid #2c3340; }
+    .primary { background: linear-gradient(180deg, #f0b45a, #b87a28); color: #1a1208; font-weight: 650; }
+  </style>
+</head>
+<body>
+  <h1>用文字描述角色</h1>
+  <p id="hint">当前接口（如 DeepSeek）不支持识图。请描述外貌、配色、气质，越具体越好。</p>
+  <textarea id="desc" placeholder="例如：一只圆滚滚的三花小猫，白色为主，头顶橘斑，戴粉色耳机，大眼睛，坐姿，卡通桌宠风格"></textarea>
+  <div class="row">
+    <button class="ghost" id="cancel" type="button">取消</button>
+    <button class="primary" id="ok" type="button">开始生成</button>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const hint = params.get('hint');
+    const seed = params.get('seed');
+    if (hint) document.getElementById('hint').textContent = hint;
+    if (seed) document.getElementById('desc').value = seed;
+
+    document.getElementById('cancel').onclick = () => {
+      window.descPrompt?.cancel?.();
+    };
+    document.getElementById('ok').onclick = () => {
+      const v = document.getElementById('desc').value.trim();
+      if (!v) {
+        document.getElementById('desc').focus();
+        return;
+      }
+      window.descPrompt?.submit?.(v);
+    };
+  </script>
+</body>
+</html>

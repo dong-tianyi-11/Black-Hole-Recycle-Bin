@@ -10,7 +10,7 @@ const {
 } = require('./capture');
 const themeLoader = require('./theme-loader');
 const themeImporter = require('./theme-importer');
-const { createThemeFromImage, testAiConnection, DEFAULT_BASE, DEFAULT_MODEL } = require('./theme-from-image');
+const { createThemeFromImage, testAiConnection, preflightAi, assessEndpoint, DEFAULT_BASE, DEFAULT_MODEL, PROVIDER_PRESETS, normalizeBaseUrl, detectVisionSupport } = require('./theme-from-image');
 const {
   getDisplaysSafe,
   clampToDisplays,
@@ -57,8 +57,8 @@ const DEFAULT_CONFIG = {
   preMiniY: 0,
   lastLaunchedVersion: '',
   // API Key is stored encrypted in userData/ai-secrets.json (not here)
-  aiBaseUrl: 'https://api.openai.com/v1',
-  aiModel: 'gpt-4o',
+  aiBaseUrl: 'https://api.deepseek.com/v1',
+  aiModel: 'deepseek-chat',
 };
 
 let mainWindow = null;
@@ -1150,9 +1150,10 @@ function getAiConfig() {
   const cfg = loadConfig();
   return {
     apiKey: aiSecrets.getApiKey(),
-    baseUrl: String(cfg.aiBaseUrl || DEFAULT_BASE).trim() || DEFAULT_BASE,
+    baseUrl: normalizeBaseUrl(cfg.aiBaseUrl || DEFAULT_BASE),
     model: String(cfg.aiModel || DEFAULT_MODEL).trim() || DEFAULT_MODEL,
     encryption: aiSecrets.canEncrypt(),
+    presets: PROVIDER_PRESETS,
   };
 }
 
@@ -1198,8 +1199,8 @@ function openAiSettingsWindow() {
     return;
   }
   aiSettingsWin = new BrowserWindow({
-    width: 420,
-    height: 420,
+    width: 500,
+    height: 580,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -1227,9 +1228,65 @@ function openAiSettingsWindow() {
   });
 }
 
+async function askCharacterDescription({ hint, seed } = {}) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      try {
+        if (win && !win.isDestroyed()) win.close();
+      } catch (_) {}
+      resolve(value);
+    };
+
+    const win = new BrowserWindow({
+      width: 460,
+      height: 360,
+      resizable: true,
+      minimizable: false,
+      maximizable: false,
+      title: '角色描述',
+      parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+      modal: true,
+      show: false,
+      backgroundColor: '#12141a',
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'ai-desc-prompt-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    win.setMenuBarVisibility(false);
+    const q = new URLSearchParams();
+    if (hint) q.set('hint', hint);
+    if (seed) q.set('seed', seed);
+    win.loadFile(path.join(__dirname, 'ai-desc-prompt.html'), { query: Object.fromEntries(q) });
+    win.once('ready-to-show', () => {
+      if (!win.isDestroyed()) win.show();
+    });
+    win.on('closed', () => finish(null));
+
+    const onSubmit = (_e, text) => {
+      ipcMain.removeListener('ai-desc-submit', onSubmit);
+      ipcMain.removeListener('ai-desc-cancel', onCancel);
+      finish(String(text || '').trim() || null);
+    };
+    const onCancel = () => {
+      ipcMain.removeListener('ai-desc-submit', onSubmit);
+      ipcMain.removeListener('ai-desc-cancel', onCancel);
+      finish(null);
+    };
+    ipcMain.on('ai-desc-submit', onSubmit);
+    ipcMain.on('ai-desc-cancel', onCancel);
+  });
+}
+
 async function createThemeFromImageDialog() {
   const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
-  const ai = getAiConfig();
+  let ai = getAiConfig();
   if (!ai.apiKey) {
     const ask = await dialog.showMessageBox(win || undefined, {
       type: 'info',
@@ -1237,33 +1294,155 @@ async function createThemeFromImageDialog() {
       defaultId: 0,
       cancelId: 1,
       title: '需要 API Key',
-      message: '从图片生成主题需要你自己的 AI API Key',
-      detail: '支持 OpenAI 及兼容接口。可在「皮肤 → AI 设置」中填写。',
+      message: '生成主题需要你自己的 AI API Key',
+      detail:
+        '推荐 DeepSeek / 硅基流动 / 百炼等国内预设：在「AI 设置」点选后填入对应 Key 并保存。',
     });
     if (ask.response === 0) openAiSettingsWindow();
     return;
   }
 
-  const result = await dialog.showOpenDialog(win || undefined, {
-    title: '选一张图片，交给 AI 生成主题',
-    properties: ['openFile'],
-    filters: [
-      { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] },
-    ],
+  const endpoint = assessEndpoint(ai.baseUrl, ai.model);
+
+  // Any risky overseas host (OpenAI / Anthropic / Google …) — warn early
+  if (endpoint.riskyForeign) {
+    const ask = await dialog.showMessageBox(win || undefined, {
+      type: 'warning',
+      buttons: ['打开 AI 设置改国内预设', '仍然继续', '取消'],
+      defaultId: 0,
+      cancelId: 2,
+      title: '当前接口在国内易被拦截',
+      message: `检测到海外地址：${endpoint.host || endpoint.root}`,
+      detail:
+        `预设：${endpoint.presetLabel}\n模型：${endpoint.model}\n\n` +
+        '国内直连 OpenAI / Claude / Gemini 等常被网关拦截（429 Request Blocked）。\n' +
+        '请改选 DeepSeek、硅基流动、百炼、智谱等，并使用该服务商自己的 API Key。',
+    });
+    if (ask.response === 2) return;
+    if (ask.response === 0) {
+      openAiSettingsWindow();
+      return;
+    }
+  }
+
+  // Preflight before asking for image/description — catch bad Key / blocked host early
+  {
+    let progressWin = null;
+    try {
+      progressWin = new BrowserWindow({
+        width: 360,
+        height: 120,
+        frame: true,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        title: '预检中',
+        parent: win || undefined,
+        modal: true,
+        show: true,
+        autoHideMenuBar: true,
+        backgroundColor: '#12141a',
+        webPreferences: { sandbox: true },
+      });
+      progressWin.setMenuBarVisibility(false);
+      progressWin.loadURL(
+        'data:text/html;charset=utf-8,' +
+          encodeURIComponent(
+            `<body style="margin:0;background:#12141a;color:#e8ecf4;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;padding:16px;text-align:center;font-size:13px">正在预检 ${endpoint.host || 'AI 接口'}…</body>`
+          )
+      );
+    } catch (_) {}
+    const check = await preflightAi(ai);
+    try {
+      if (progressWin && !progressWin.isDestroyed()) progressWin.close();
+    } catch (_) {}
+    if (!check.ok) {
+      const fail = await dialog.showMessageBox(win || undefined, {
+        type: 'error',
+        buttons: check.blocked
+          ? ['打开 AI 设置', '取消']
+          : ['仍然继续', '打开 AI 设置', '取消'],
+        defaultId: 0,
+        cancelId: check.blocked ? 1 : 2,
+        title: '预检失败',
+        message: '当前 AI 接口不可用',
+        detail:
+          (check.message || '请检查 Base URL / Key / 模型') +
+          `\n\n当前：${ai.baseUrl}\n模型：${ai.model}` +
+          (check.blocked
+            ? '\n\n若被网关拦截，请改用 DeepSeek / 硅基流动 / 百炼 / 智谱等国内预设。'
+            : ''),
+      });
+      if (check.blocked) {
+        if (fail.response === 0) openAiSettingsWindow();
+        return;
+      }
+      if (fail.response === 1) {
+        openAiSettingsWindow();
+        return;
+      }
+      if (fail.response === 2) return;
+    }
+  }
+
+  ai = getAiConfig();
+  const cap = detectVisionSupport(ai.baseUrl, ai.model);
+  let imagePath = null;
+
+  if (cap.vision !== false) {
+    const result = await dialog.showOpenDialog(win || undefined, {
+      title: '选一张参考图（识图；失败时自动改用文字描述）',
+      properties: ['openFile'],
+      filters: [
+        { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.[0]) return;
+    imagePath = result.filePaths[0];
+  }
+
+  // Always collect text description as fallback for ANY provider (vision or not)
+  const seedName = imagePath
+    ? path.basename(imagePath, path.extname(imagePath))
+    : '';
+  const description = await askCharacterDescription({
+    hint:
+      cap.vision === false
+        ? `${cap.reason || '当前接口不支持识图'}。\n当前：${ai.baseUrl}\n模型：${ai.model}`
+        : '建议填写文字描述作备用：识图失败、网关拦截或不支持 Vision 时会自动改用文字生成。',
+    seed: seedName
+      ? `角色参考名：${seedName}。请补充：物种/体型、主色与花纹、表情气质、服饰或配件、坐姿或站姿。`
+      : '请描述：物种/体型、主色与花纹、表情气质、服饰或配件、坐姿或站姿。',
   });
-  if (result.canceled || !result.filePaths?.[0]) return;
+  if (!description) return;
 
   // Non-blocking progress window
   let progress = null;
+  const setProgressText = (text) => {
+    if (!progress || progress.isDestroyed()) return;
+    const safe = String(text || '正在生成…')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    progress.loadURL(
+      'data:text/html;charset=utf-8,' +
+        encodeURIComponent(
+          `<body style="margin:0;background:#12141a;color:#e8ecf4;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:10px;padding:16px;text-align:center">` +
+            `<div style="font-size:14px;line-height:1.5">${safe}</div>` +
+            `<div style="font-size:11px;color:#8b93a7">${ai.baseUrl} · ${ai.model}</div>` +
+            `</body>`
+        )
+    );
+  };
   try {
     progress = new BrowserWindow({
-      width: 320,
-      height: 120,
+      width: 380,
+      height: 150,
       frame: true,
       resizable: false,
       minimizable: false,
       maximizable: false,
-      title: '正在生成',
+      title: '正在生成主题',
       parent: win || undefined,
       modal: false,
       show: true,
@@ -1272,25 +1451,38 @@ async function createThemeFromImageDialog() {
       webPreferences: { sandbox: true },
     });
     progress.setMenuBarVisibility(false);
-    progress.loadURL(
-      'data:text/html;charset=utf-8,' +
-        encodeURIComponent(
-          `<body style="margin:0;background:#12141a;color:#e8ecf4;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;font-size:14px">正在调用 AI 生成主题，请稍候…</body>`
-        )
-    );
+    setProgressText('准备中…');
   } catch (_) {}
 
-  const created = await createThemeFromImage(result.filePaths[0], themeLoader.getUserThemesDir(), ai);
+  ai = getAiConfig();
+  const created = await createThemeFromImage(
+    imagePath,
+    themeLoader.getUserThemesDir(),
+    {
+      ...ai,
+      description,
+      forceText: cap.vision === false,
+    },
+    setProgressText
+  );
   try {
     if (progress && !progress.isDestroyed()) progress.close();
   } catch (_) {}
 
   if (created.status !== 'ok') {
+    const blocked =
+      /网关拦截|Request Blocked|openai\.com|anthropic\.com|googleapis\.com/i.test(
+        created.message || ''
+      );
     await dialog.showMessageBox(win || undefined, {
       type: 'error',
       title: '生成失败',
       message: 'AI 生成主题失败',
-      detail: created.message || '请检查 API Key、Base URL、模型是否支持识图',
+      detail:
+        (created.message || '请检查 API Key、Base URL、模型名') +
+        (blocked
+          ? '\n\n请打开「AI 设置」→ 改选国内预设（DeepSeek / 硅基流动 / 百炼等）→ 填入对应 Key → 保存。'
+          : `\n\n当前配置：${ai.baseUrl}\n模型：${ai.model}\n可先在 AI 设置里点「测试连接」确认。`),
     });
     return;
   }
@@ -1301,7 +1493,10 @@ async function createThemeFromImageDialog() {
     type: 'info',
     title: '主题已生成',
     message: `「${created.name}」已就绪`,
-    detail: '已自动切换到新皮肤。',
+    detail:
+      created.mode === 'text'
+        ? '已按文字描述生成并自动切换。'
+        : '已自动切换到新皮肤。',
   });
 }
 
@@ -1553,7 +1748,7 @@ function registerIpc() {
   ipcMain.handle('ai-settings-get', () => getAiConfig());
   ipcMain.handle('ai-settings-save', (_e, payload) => {
     const apiKey = String(payload?.apiKey ?? '').trim();
-    const baseUrl = String(payload?.baseUrl ?? '').trim() || DEFAULT_BASE;
+    const baseUrl = normalizeBaseUrl(payload?.baseUrl || DEFAULT_BASE);
     const model = String(payload?.model ?? '').trim() || DEFAULT_MODEL;
     aiSecrets.setApiKey(apiKey);
     saveConfig({
@@ -1565,7 +1760,7 @@ function registerIpc() {
   ipcMain.handle('ai-settings-test', async (_e, payload) => {
     const current = getAiConfig();
     const apiKey = String(payload?.apiKey ?? current.apiKey ?? '').trim();
-    const baseUrl = String(payload?.baseUrl ?? current.baseUrl ?? '').trim() || DEFAULT_BASE;
+    const baseUrl = normalizeBaseUrl(payload?.baseUrl || current.baseUrl || DEFAULT_BASE);
     const model = String(payload?.model ?? current.model ?? '').trim() || DEFAULT_MODEL;
     return testAiConnection({ apiKey, baseUrl, model });
   });

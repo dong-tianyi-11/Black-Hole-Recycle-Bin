@@ -11,7 +11,7 @@ Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把�
 ## 永久下载直链
 
 链接固定不变，每次发版会覆盖同名安装包；**点击即下载现成安装包，用户无需自行构建**。  
-当前版本 **v1.1.3**（含 Windows + macOS arm64 / Intel）。
+当前版本 **v1.1.4**（含 Windows + macOS arm64 / Intel）。
 
 | 平台 | 下载（推荐 GitHub） | 备用 |
 |------|---------------------|------|
@@ -66,9 +66,11 @@ https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/downloa
 
 托盘 → **皮肤**：
 
-1. **AI 设置（API Key）…** — 填写你自己的 Key（兼容 OpenAI 接口，可改 Base URL / 模型；可点「测试连接」）  
-2. **从图片生成主题…** — 选一张参考图，由云端大模型真实生成桌宠皮肤并自动切换  
+1. **AI 设置（API Key）…** — 填写你自己的 Key。内置国内预设：**DeepSeek**（默认，文字描述生成）、硅基流动 / 阿里云百炼 / 智谱 / Kimi / 零一 / 百川 / 火山方舟 / 混元 / 千帆，以及 OpenRouter、OpenAI。可点「测试连接」。国内直连 OpenAI/Claude/Gemini 等易被网关拦截，请优先用国内预设。  
+2. **从图片生成主题…** — 生成前自动预检接口；识图模型可看图，且**始终可填文字描述作备用**（识图失败或网关问题时自动改用文字生成）  
 3. **导入主题包（.zip）…** — 导入现成主题包  
+
+DeepSeek Base URL 示例：`https://api.deepseek.com/v1`，模型：`deepseek-chat`。  
 
 API Key 使用系统加密（Windows DPAPI / macOS Keychain）保存在 `ai-secrets.json`，不会明文写进 `config.json`，也不会随安装包分发。
 
@@ -78,6 +80,11 @@ API Key 使用系统加密（Windows DPAPI / macOS Keychain）保存在 `ai-secr
 - macOS：`~/Library/Application Support/black-hole-recycle-bin/themes/`
 
 ## 更新记录
+
+### v1.1.4
+- AI 主题生成：国内服务商预设（DeepSeek 默认等），生成前自动预检
+- 海外易拦截地址提前警告；网关 HTML 拦截快速失败并提示改国内预设
+- 识图失败时自动改用文字描述；文字描述对话框打包进安装包
 
 ### v1.1.3
 - 土星光环：石粒大小不一、颜色更亮，更像碎石而非光点
