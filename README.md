@@ -1,25 +1,27 @@
-# 黑洞回收站 · Black Hole Recycle Bin
+# Black Hole Recycle Bin
 
-Interstellar 风格桌面黑洞回收站（Electron）：Windows / macOS。把文件拖进去送入系统回收站。
+English | [中文](README.zh-CN.md)
 
-仓库：
-- Gitee（发行版 / 自动更新）：[gitee.com/dong-tianyi-11/black-hole-recycle-bin](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin)
-- GitHub：[github.com/dong-tianyi-11/Black-Hole-Recycle-Bin](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin)
+Interstellar-style desktop black-hole recycle bin (Electron) for Windows / macOS. Drop files in to send them to the system Recycle Bin / Trash.
 
-内置皮肤：**黑洞**、**土星**、**三花小猫**、**炼丹少年**。支持自定义主题与 **Gitee 自动更新**（GitHub 同步镜像安装包）。
+Repositories:
+- Gitee (releases / auto-update): [gitee.com/dong-tianyi-11/black-hole-recycle-bin](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin)
+- GitHub: [github.com/dong-tianyi-11/Black-Hole-Recycle-Bin](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin)
 
-## 永久下载直链
+Built-in skins: **Black Hole**, **Saturn**, **Calico Cat**, **Danchen (Alchemy Boy)**. Supports custom themes and **Gitee auto-update** (GitHub mirrors the installers).
 
-链接固定不变，每次发版会覆盖同名安装包；**点击即下载现成安装包，用户无需自行构建**。  
-当前版本 **v1.1.4**（含 Windows + macOS arm64 / Intel）。
+## Permanent download links
 
-| 平台 | 下载（推荐 GitHub） | 备用 |
-|------|---------------------|------|
-| Windows x64 | [直接下载](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [Gitee](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
-| macOS Apple Silicon (M 系列) | [直接下载 .dmg](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg) | 同左（Gitee 单文件上限约 100MB，Mac 包请用 GitHub） |
-| macOS Intel | [直接下载 .dmg](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg) | 同左（请用 GitHub） |
+URLs stay the same; each release overwrites the same-named installers. **Click to download — no build required.**  
+Current version **v1.1.4** (Windows + macOS arm64 / Intel).
 
-纯文本直链：
+| Platform | Download (GitHub recommended) | Mirror |
+|----------|-------------------------------|--------|
+| Windows x64 | [Direct download](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe) | [Gitee](https://gitee.com/dong-tianyi-11/black-hole-recycle-bin/releases/download/latest/BlackHoleRecycleBin-Windows-x64.exe) |
+| macOS Apple Silicon (M series) | [Direct download .dmg](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-arm64.dmg) | Same (Gitee ~100MB file limit — use GitHub for Mac) |
+| macOS Intel | [Direct download .dmg](https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg) | Same (use GitHub) |
+
+Plain URLs:
 
 ```text
 https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-Windows-x64.exe
@@ -27,138 +29,138 @@ https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/downloa
 https://github.com/dong-tianyi-11/Black-Hole-Recycle-Bin/releases/latest/download/BlackHoleRecycleBin-macOS-x64.dmg
 ```
 
-已安装用户也可：托盘 → **检查更新**（Windows 读 Gitee `latest`；macOS 会提示到发行页下载）。
+Installed users can also use: tray → **Check for updates** (Windows reads Gitee `latest`; macOS opens the release page).
 
-## 系统要求
+## System requirements
 
-| 平台 | 最低版本 | 说明 |
-|------|----------|------|
-| Windows | **Windows 10** x64（及更高） | 受 Chromium/Electron 限制，无法再支持 Win7/8/8.1 |
-| macOS | **11 Big Sur** 及以上 | 同时提供 Intel (x64) 与 Apple Silicon (arm64) 安装包 |
+| Platform | Minimum | Notes |
+|----------|---------|-------|
+| Windows | **Windows 10** x64 (and later) | Chromium/Electron — Win7/8/8.1 not supported |
+| macOS | **11 Big Sur** or later | Intel (x64) and Apple Silicon (arm64) installers |
 
-配置与 API Key 存放在用户目录（`%APPDATA%\black-hole-recycle-bin` / `~/Library/Application Support/black-hole-recycle-bin`），**更新安装不会清除**。
+Config and API keys live under the user data folder (`%APPDATA%\black-hole-recycle-bin` / `~/Library/Application Support/black-hole-recycle-bin`). **Updates do not wipe them.**
 
-## 内置皮肤
+## Built-in skins
 
-| 皮肤 | 类型 | 说明 |
-|------|------|------|
-| 黑洞 | 画布 | 引力透镜 / 吸积盘；拖入文件旋转撕碎吸入回收站 |
-| 土星 | 画布 | 哑光立体星球 + 光环石粒；石粒数量随回收站增减 |
-| 三花小猫 | 桌宠 | 戳一戳、吃文件、打字敲键盘、听歌晃动、贴边迷你 |
-| 炼丹少年 | 桌宠 | 炼丹打字、听歌、吃文件、贴边迷你（带轻微动态） |
+| Skin | Type | Notes |
+|------|------|-------|
+| Black Hole | Canvas | Gravitational lens / accretion disk; dropped files spin, shred, and enter the Recycle Bin |
+| Saturn | Canvas | Matte planet + ring rocks; rock count follows Recycle Bin item count |
+| Calico Cat | Desktop pet | Poke, eat files, typing, listening sway, edge mini mode |
+| Danchen | Desktop pet | Alchemy typing, listening, eat files, edge mini (light motion) |
 
-桌宠在键盘输入时显示「工作 / 炼丹」，系统在播音乐时显示「听歌」；二者优先级为 **打字 > 听歌 > 常态**，勿扰 / 迷你进出后会自动恢复正确表情。
+Pets show “working / alchemy” while typing and “listening” when the system plays music. Priority: **typing > listening > idle**. Do Not Disturb / mini enter-exit restores the correct face automatically.
 
-## 操作
+## Controls
 
-| 操作 | 效果 |
-|------|------|
-| 左键拖拽 | 移动；**用力拖出左右屏幕边缘**松手才进入迷你模式（靠近不会自动吸附） |
-| 迷你模式 | 半身藏进边框；悬停探头；单击 / 拖出 / 托盘均可退出 |
-| 左键单击 | 小猫戳一戳 / 唤醒（迷你模式下为退出迷你） |
-| 滚轮 | 放大 / 缩小（以中心锚定，尽量不跳位） |
-| 拖入文件 | 吸入 / 吃掉 → 回收站（Win / Mac） |
-| 托盘 | 皮肤、勿扰、多屏、开机启动、录屏可见、尺寸、缩小到原尺寸、检查更新等 |
+| Action | Effect |
+|--------|--------|
+| Left-drag | Move; **fling past the left/right screen edge** and release to enter mini mode (near-edge alone does not snap) |
+| Mini mode | Half-hidden in the screen edge; hover peeks out; click / drag out / tray exits |
+| Left-click | Cat poke / wake (in mini mode: exit mini) |
+| Scroll wheel | Zoom in / out (center-anchored to reduce jump) |
+| Drop files | Ingest / eat → Recycle Bin / Trash (Win / Mac) |
+| Tray | Skins, Do Not Disturb, multi-monitor, launch at login, screen-recording visibility, size, shrink to base size, check for updates, etc. |
 
-> **录屏**：小猫 / 炼丹 / 土星默认可被 EV、OBS 等录到。黑洞主题为刷新桌面扭曲会默认排除录屏；录黑洞时请托盘勾选 **录屏可见**。
+> **Screen recording**: Cat / Danchen / Saturn are visible to EV, OBS, etc. by default. Black Hole excludes itself from capture while refreshing the desktop warp; to record Black Hole, enable **Visible in screen recording** in the tray.
 
-## 自定义主题
+## Custom themes
 
-托盘 → **皮肤**：
+Tray → **Skin**:
 
-1. **AI 设置（API Key）…** — 填写你自己的 Key。内置国内预设：**DeepSeek**（默认，文字描述生成）、硅基流动 / 阿里云百炼 / 智谱 / Kimi / 零一 / 百川 / 火山方舟 / 混元 / 千帆，以及 OpenRouter、OpenAI。可点「测试连接」。国内直连 OpenAI/Claude/Gemini 等易被网关拦截，请优先用国内预设。  
-2. **从图片生成主题…** — 生成前自动预检接口；识图模型可看图，且**始终可填文字描述作备用**（识图失败或网关问题时自动改用文字生成）  
-3. **导入主题包（.zip）…** — 导入现成主题包  
+1. **AI settings (API Key)…** — Enter your own key. Built-in presets: **DeepSeek** (default; text-description generation), SiliconFlow / Alibaba Bailian / Zhipu / Kimi / Yi / Baichuan / Volcengine Ark / Hunyuan / Qianfan, plus OpenRouter and OpenAI. Use **Test connection**. Direct OpenAI/Claude/Gemini endpoints are often blocked in mainland China — prefer domestic presets there.  
+2. **Generate theme from image…** — Preflights the API first; vision models can use the image, and a **text description is always collected as fallback** (used automatically if vision fails or the gateway blocks).  
+3. **Import theme package (.zip)…** — Import an existing theme pack  
 
-DeepSeek Base URL 示例：`https://api.deepseek.com/v1`，模型：`deepseek-chat`。  
+DeepSeek Base URL example: `https://api.deepseek.com/v1`, model: `deepseek-chat`.  
 
-API Key 使用系统加密（Windows DPAPI / macOS Keychain）保存在 `ai-secrets.json`，不会明文写进 `config.json`，也不会随安装包分发。
+API keys are stored encrypted via the OS (Windows DPAPI / macOS Keychain) in `ai-secrets.json` — not plain-text in `config.json`, and not shipped in the installer.
 
-用户主题目录：
+User themes folder:
 
-- Windows：`%APPDATA%\black-hole-recycle-bin\themes\`
-- macOS：`~/Library/Application Support/black-hole-recycle-bin/themes/`
+- Windows: `%APPDATA%\black-hole-recycle-bin\themes\`
+- macOS: `~/Library/Application Support/black-hole-recycle-bin/themes/`
 
-## 更新记录
+## Changelog
 
 ### v1.1.4
-- AI 主题生成：国内服务商预设（DeepSeek 默认等），生成前自动预检
-- 海外易拦截地址提前警告；网关 HTML 拦截快速失败并提示改国内预设
-- 识图失败时自动改用文字描述；文字描述对话框打包进安装包
+- AI theme generation: domestic provider presets (DeepSeek default, etc.) with preflight before generate
+- Early warning for overseas endpoints that are often gateway-blocked; fail fast on HTML block pages and suggest domestic presets
+- Auto-fallback to text description when vision fails; description dialog packaged in the installer
 
 ### v1.1.3
-- 土星光环：石粒大小不一、颜色更亮，更像碎石而非光点
-- 黑洞 / 土星回收过程更丝滑（柔和螺旋吸入、碎石镶入光环）
-- 三花小猫听歌：新耳机立绘 + 轻微晃动与音符
-- 炼丹少年迷你：贴边轻微晃动与星光，尺寸略缩小
-- 修复打字 / 炼丹偶发卡在工作脸（忽略幽灵按键）
+- Saturn ring: irregular brighter rock particles (less like light dots)
+- Smoother Black Hole / Saturn recycle FX (softer spiral ingest, rocks settle into the ring)
+- Calico listening: new headphone art + light bob and music notes
+- Danchen mini: edge bob + sparkles, slightly smaller
+- Fix typing / alchemy occasionally stuck on work face (ignore ghost key events)
 
 ### v1.1.2
-- 土星主题：减弱塑料感立体光，改为哑光气态星球
-- 土星光环石粒改为高对比光点（深色描边 + 金色光晕），白桌面更易看见
-- 光环与行星阴影更柔和，突出环上光点
+- Saturn: less plastic lighting; matte gaseous look
+- Ring rocks as high-contrast light points (dark outline + gold glow) for light desktops
+- Softer ring / planet shadows so ring points stand out
 
 ### v1.1.1
-- 黑洞回收特效：松手放入后文件旋转撕碎吸入（悬停拖拽不再提前播放）
-- 去掉吸入时的光粒子特效，改为纸质碎片撕碎
-- 修复喂食变大时窗口先挪位再放大
-- 迷你模式：不再「靠近边缘就吸附」，需拖出屏幕边缘足够距离才进入
-- 修复迷你贴边后热区过小导致拖不动 / 退不出
-- 变大动画锁定中心点，避免透明窗口位置跳动
+- Black Hole recycle FX: shred/spin only after drop (not while hovering)
+- Paper-fragment shred instead of glow particles
+- Fix window jumping before grow when feeding
+- Mini mode: require a strong fling past the edge (no near-edge snap)
+- Fix tiny hit target after mini dock (hard to drag / exit)
+- Grow animation locks center to avoid transparent-window jump
 
 ### v1.1.0
-- 录屏可见：小猫 / 炼丹 / 土星默认可被 EV、OBS 等录到
-- 托盘新增「录屏可见」；黑洞主题录屏时勾选即可
-- 修复桌宠状态被覆盖：打字 / 听歌 / 常态优先级正确恢复
-- 修复三花小猫迷你素材在安装包中缺失
+- Screen-recording visibility: Cat / Danchen / Saturn visible to EV, OBS, etc. by default
+- Tray toggle **Visible in screen recording**; enable for Black Hole when recording
+- Fix pet state overwrite: typing / listening / idle priority restored correctly
+- Fix missing Calico mini asset in the packaged app
 
 ### v1.0.13
-- 修复桌宠状态被覆盖：打字 / 听歌 / 常态优先级正确恢复
-- 修复三花小猫迷你素材在安装包中缺失
-- 打包保留迷你与打字动画；主题切换、勿扰、退出迷你后重同步表情
+- Fix pet state overwrite: typing / listening / idle priority restored correctly
+- Fix missing Calico mini asset in the packaged app
+- Keep mini and typing animations in the build; re-sync face after theme switch, DND, and mini exit
 
 ### v1.0.12
-- 土星主题：行星自转（云带 / 风暴）与光环轻微漂移
+- Saturn: planet rotation (bands / storms) and slight ring drift
 
 ### v1.0.11
-- 清理临时素材；优化拖拽与靠边迷你进出
+- Clean temporary assets; smoother drag and edge mini enter/exit
 
 ### v1.0.10
-- 土星主题：回收站数量驱动光环碎石；喂食长大
+- Saturn: Recycle Bin count drives ring debris; grow on feed
 
 ### v1.0.9
-- 炼丹少年主题；小猫吃文件 SVG；打字 / 听歌状态
+- Danchen theme; Calico eat-file SVG; typing / listening states
 
-## 开发运行
+## Development
 
 ```bash
 npm install
 npm start
 ```
 
-## 打包与发布更新（维护者）
+## Build & publish (maintainers)
 
-普通用户请用上方直链下载，不必本地打包。
+End users should use the download links above — no local build needed.
 
 ```bash
-# 1) 改 package.json 的 version，更新 README 版本号
-# 2) 推送到 GitHub master 后，在 Actions 运行 Build 工作流
-#    → 自动打 Windows + macOS（arm64/x64）安装包，并刷新 latest 直链
-# 3) Windows 也可本机：npm run build:win && npm run publish:gitee && npm run publish:github
+# 1) Bump package.json version and README version
+# 2) Push to GitHub master, then run the Build workflow in Actions
+#    → builds Windows + macOS (arm64/x64) and refreshes latest download URLs
+# 3) On Windows locally: npm run build:win && npm run publish:gitee && npm run publish:github
 ```
 
-macOS 安装包由 GitHub Actions（`macos-latest`）构建，产物名：`BlackHoleRecycleBin-macOS-arm64.dmg` / `BlackHoleRecycleBin-macOS-x64.dmg`。
+macOS installers are built by GitHub Actions (`macos-latest`) as `BlackHoleRecycleBin-macOS-arm64.dmg` / `BlackHoleRecycleBin-macOS-x64.dmg`.
 
-### 测试自动更新
+### Testing auto-update
 
-1. 先安装较旧版本（如 v1.0.13）
-2. 确认 Gitee `latest` 发行版已是新版本（如 v1.1.2）的安装包与 `latest.yml`
-3. 打开已安装应用 → 托盘 → **检查更新** → 下载 → 重启
+1. Install an older build (e.g. v1.0.13)
+2. Confirm the Gitee `latest` release has the new installers and `latest.yml` (e.g. v1.1.2+)
+3. Open the installed app → tray → **Check for updates** → download → restart
 
-| 平台 | 行为 |
-|------|------|
-| Windows 安装版 | 托盘「检查更新」→ 读 `latest.yml` → 下载 → 重启安装 |
-| macOS 安装版 | 检查到新版本后打开 Gitee Releases 下载页 |
-| 开发模式 `npm start` | 提示使用安装版检查更新 |
+| Platform | Behavior |
+|----------|----------|
+| Windows installer | Tray “Check for updates” → read `latest.yml` → download → restart install |
+| macOS installer | Opens the Gitee Releases page when a newer version is found |
+| Dev mode `npm start` | Prompts to use the installed build for updates |
 
-> 自动更新读取的是标签名为 **`latest`** 的发行版附件。
+> Auto-update reads assets from the release tagged **`latest`**.
